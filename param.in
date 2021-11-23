@@ -1,0 +1,23 @@
+param = {
+    'dt':       0.05,
+    'Ntimes':   10000,
+    'Nsec':     100,
+    'Nslice':   2000,
+    'Nmol':     2,
+    'Wmol':     0.0,
+    'Wgrd':     -0.5,
+    'Nrad':     601,
+    'Wrad_max': 0.6,
+    'damping':  0.005,
+    'Vrad':     0.001,
+    'Wrad_width':       0.4,
+    'DriveAmplitude':   0.0,
+    'DriveFrequency':   0.5,
+    'DynamicalDisorder':    False,
+    'StaticDisorder':       False,
+}
+if param['StaticDisorder']:
+    param['Delta'] = 0.02
+if param['DynamicalDisorder']:
+    param['Delta'] = 0.02
+    param['TauC'] = 10.0
