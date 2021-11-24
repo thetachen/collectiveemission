@@ -56,14 +56,20 @@ else:
         'damping':  0.005,
         'Vrad':     0.001,
         'Wrad_width':       0.4,
-        'DriveAmplitude':   0.0,
-        'DriveFrequency':   0.5,
         'DynamicalDisorder':    True,
         'StaticDisorder':       False,
         'Delta':    0.02,
-        'TauC':     10.0,
+        'TauC':     1.0,
     }
+    # param['InitialState'] = 'Bright'
+    param['InitialState'] = 'Ground'
 
+    param['DriveType'] = 'Pulse'
+    param['DriveAmplitude'] = 0.01
+    param['DriveFrequency'] = 0.3
+    param['DrivePulseCenter'] = 100
+    param['DrivePulseWidth'] = 50
+    
 for key, value in param.items():
     globals()[key] = value
 
@@ -120,8 +126,12 @@ if True:
     Cdark2 = np.vstack( (Cdark1,np.zeros((Nrad,1),complex)) )
     
     # Initialize state vector
-    Cvec1 = np.ones((Nmol,1),complex)/np.sqrt(Nmol)
-    Cvec1 = np.vstack( (np.zeros((1,1),complex), Cvec1) )
+    if InitialState == "Bright":
+        Cvec1 = np.ones((Nmol,1),complex)/np.sqrt(Nmol)
+        Cvec1 = np.vstack( (np.zeros((1,1),complex), Cvec1) )
+    elif InitialState == "Ground":
+        Cvec1 = np.zeros((Nmol,1),complex)
+        Cvec1 = np.vstack( (np.ones((1,1),complex), Cvec1) )
     # Cvec1 = np.zeros((Nmol,1),complex)
     # Cvec1 = np.vstack( (np.ones((1,1),complex), Cvec1) )
     Cvec2 = np.vstack( (Cvec1,np.zeros((Nrad,1),complex)) )
@@ -139,8 +149,13 @@ if True:
     Pbright2 = []
     Pdark1 = []
     Pdark2 = []
+    DriveField = []
     for it in range(1,Ntimes):
-        drive = DriveAmplitude*np.sin(DriveFrequency*it*dt)
+        if DriveType == 'Continuous':
+            drive = DriveAmplitude*np.sin(DriveFrequency*it*dt)
+        if DriveType == 'Pulse':
+            drive = DriveAmplitude*np.sin(DriveFrequency*it*dt) * \
+                    np.exp(-(it*dt-DrivePulseCenter)**2/DrivePulseWidth**2)
         Ht = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive,    Vgrdrad.T )),
                          np.hstack(( Vmolgrd*drive, Hmol,               Vmolrad.T )),
                          np.hstack(( Vgrdrad,       Vmolrad,            Hrad )) ))
@@ -180,6 +195,7 @@ if True:
             Pbright2.append( np.abs(np.dot(Cbright2.T,Cvec2)[0,0])**2 )
             Pdark1.append( np.abs(np.dot(Cdark1.T,Cvec1)[0,0])**2 )
             Pdark2.append( np.abs(np.dot(Cdark2.T,Cvec2)[0,0])**2 )
+            DriveField.append(drive)
             if printoutput:
                 print("{t}\t{P1}\t{P2}".format(t=times[-1],P1=Pmol1[-1],P2=Pmol2[-1]))
                 print("\t{Pb1}\t{Pb2}".format(Pb1=Pbright1[-1],Pb2=Pbright2[-1]))
@@ -213,6 +229,8 @@ if plotresult:
     ax[0].plot(times,Pbright2, '--r', lw=2, label='Explicit Radiation: Bright', alpha=0.7)
     #ax[0].plot(times,Pdark1, ':r', lw=2, label='Q matrix: Dark', alpha=0.7)
     ax[0].plot(times,Pdark2, ':b', lw=2, label='Explicit Radiation: Dark', alpha=0.7)
+    if DriveType == 'Pulse':
+        ax[0].plot(times,DriveField, ':k', lw=2, label='Drive', alpha=0.7)
     ax[0].set_xlim([0,Ntimes*dt])
     ax[0].set_ylim([0,1])
     ax[0].set_xlabel("time")
