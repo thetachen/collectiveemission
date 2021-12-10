@@ -40,6 +40,17 @@ def GenerateGaussianProcess(Delta,TauC,Ntimes,dt):
         Omega[it] = np.random.normal(mean_it,sigma_it)
     return Omega
 
+def GenerateFastModulation(Gamma,Ntimes,dt):
+    # Abe-Maxim process for generate Gaussian process in fast modulation
+
+    GaussianWidth = Gamma/dt/2
+    Omega = np.zeros(Ntimes)
+
+    for it in range(Ntimes):
+        Omega[it] = np.random.normal(0.0,GaussianWidth)
+
+    return Omega
+
 if 'param.in' in sys.argv:
     execfile('param.in')
 else:
@@ -55,16 +66,19 @@ else:
         'Wrad_max': 0.6,
         'damping':  0.005,
         'Vrad':     0.001,
-        'Wrad_width':       0.4,
-        'DynamicalDisorder':    True,
+        # 'Wrad_width':       0.4,
+        'DynamicalDisorder':    False,
         'StaticDisorder':       False,
+        'FastModulation':       True,
         'Delta':    0.02,
         'TauC':     1.0,
+        'Gamma':    0.01,
     }
-    # param['InitialState'] = 'Bright'
-    param['InitialState'] = 'Ground'
+    param['InitialState'] = 'Bright'
+    # param['InitialState'] = 'Ground'
 
-    param['DriveType'] = 'Pulse'
+    param['DriveType'] = 'None'
+    # param['DriveType'] = 'Pulse'
     param['DriveAmplitude'] = 0.01
     param['DriveFrequency'] = 0.3
     param['DrivePulseCenter'] = 100
@@ -85,6 +99,12 @@ if True:
         Wt = np.zeros((Nmol,Ntimes))
         for i in range(Nmol):
             Wt[i] = GenerateGaussianProcess(Delta,TauC,Ntimes,dt)
+        Wt = Wt.T
+
+    if FastModulation:
+        Wt = np.zeros((Nmol,Ntimes))
+        for i in range(Nmol):
+            Wt[i] = GenerateFastModulation(Gamma,Ntimes,dt)
         Wt = Wt.T
  
     # Construct the Hamiltonian
@@ -151,6 +171,8 @@ if True:
     Pdark2 = []
     DriveField = []
     for it in range(1,Ntimes):
+        if DriveType == 'None':
+            drive = 0.0
         if DriveType == 'Continuous':
             drive = DriveAmplitude*np.sin(DriveFrequency*it*dt)
         if DriveType == 'Pulse':
@@ -166,7 +188,7 @@ if True:
             for imol in range(Nmol):
                 Ht[1+imol,1+imol] += Ws[imol]
                 HQ[1+imol,1+imol] += Ws[imol]            
-        if DynamicalDisorder:
+        if DynamicalDisorder or FastModulation:
             for imol in range(Nmol): 
                 Ht[1+imol,1+imol] += Wt[it,imol]
                 HQ[1+imol,1+imol] += Wt[it,imol]
