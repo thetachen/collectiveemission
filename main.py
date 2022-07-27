@@ -54,40 +54,50 @@ def GenerateFastModulation(dephasing,Ntimes,dt):
 StaticDisorder = False
 DynamicalDisorder = False
 FastModulation = False
+NearestNeighbor = False
 if 'param.in' in sys.argv:
     execfile('param.in')
 else:
     param = {
         'dt':       0.05,
-        'Ntimes':   10000,
-        'Nsec':     100,
+        'Ntimes':   2000,
+        'Nsec':     10,
         'Nslice':   100,
-        'Nmol':     2,
+        'Nmol':     10,
         'Wmol':     0.0,
-        'Wgrd':     -0.5,
+        'Wgrd':     -1.0,
         'Nrad':     601,
         'Wrad_max': 0.6,
         'damping':  0.005,
         'Vrad':     0.001,
-        # 'Wrad_width':       0.4,
-        'DynamicalDisorder':    False,
-        'StaticDisorder':       True,
-        'FastModulation':       False,
-        'Delta':    0.1,
-        'TauC':     1.0,
-        'dephasing':    0.01,
     }
     param['InitialState'] = 'Bright'
     # param['InitialState'] = 'Ground'
 
+    
+    param['StaticDisorder'] = False
+    # param['Delta'] = 0.1
+
+    param['DynamicalDisorder'] = False
+    # param['Delta'] = 0.1
+    # param['TauC'] = 1.0
+
+    param['FastModulation'] = False
+    # param['dephasing'] =0.01
+
+
     param['DriveType'] = 'None'
     # param['DriveType'] = 'Pulse'
     # param['DriveType'] = 'Continuous'
-    param['DriveAmplitude'] = 0.01
-    param['DriveFrequency'] = 0.3
-    param['DrivePulseCenter'] = 100
-    param['DrivePulseWidth'] = 50
-    
+    # param['DriveAmplitude'] = 0.01
+    # param['DriveFrequency'] = 0.3
+    # param['DrivePulseCenter'] = 100
+    # param['DrivePulseWidth'] = 50
+
+    # param['NearestNeighbor'] = True
+    # param['StaticCoupling'] = 0.0
+    # param['DynamicCoupling'] = 0.1 
+    # param['CouplingCorrelation'] = 0.1
 for key, value in param.items():
     globals()[key] = value
 
@@ -119,6 +129,18 @@ if True:
     Vmolrad = np.zeros((Nrad,Nmol),complex)
     Vmolgrd = np.zeros((Nmol,1),complex)
     Vgrdrad = np.zeros((Nrad,1),complex)
+    if NearestNeighbor:
+        for j in range(Nmol-1):
+            Hmol[j,j+1] = -StaticCoupling
+            Hmol[j+1,j] = -StaticCoupling
+        Hmol[0,-1] = -StaticCoupling
+        Hmol[-1,0] = -StaticCoupling
+
+        if not DynamicCoupling==0.0:
+            Ut = np.zeros((Nmol,Ntimes))
+            for i in range(Nmol):
+                Ut[i] = GenerateGaussianProcess(DynamicCoupling,CouplingCorrelation,Ntimes,dt)
+            Ut = Ut.T
 
     # Construct the molecule-radiation coupling
     Gamma = 0.0
@@ -213,6 +235,18 @@ if True:
                 Ht[1+imol,1+imol] += Wt[it,imol]
                 HQ[1+imol,1+imol] += Wt[it,imol]
 
+        if NearestNeighbor and not DynamicCoupling==0.0:
+            for imol in range(Nmol-1): 
+                Ht[1+imol,1+imol+1] += Ut[it,imol]
+                Ht[1+imol+1,1+imol] += Ut[it,imol]
+                HQ[1+imol,1+imol+1] += Ut[it,imol]        
+                HQ[1+imol+1,1+imol] += Ut[it,imol]
+            
+            Ht[1,Nmol] += Ut[it,-1]
+            Ht[Nmol,1] += Ut[it,-1]
+            HQ[1,Nmol] += Ut[it,-1]
+            HQ[Nmol,1] += Ut[it,-1]
+
         ### RK4 propagation 
         K1 = -1j*np.dot(HQ,Cvec1)
         K2 = -1j*np.dot(HQ,Cvec1+dt*K1/2)
@@ -283,10 +317,10 @@ if plotresult:
     times=np.array(times)
 
     fig, ax= plt.subplots(1,3, figsize=(16.0,3.0))
-    #ax[0].plot(times,Pmol1, '-r', lw=2, label='Q matrix', alpha=0.7)
+    ax[0].plot(times,Pmol1, '-r', lw=2, label='Q matrix', alpha=0.7)
     ax[0].plot(times,Pmol2, '-k', lw=2, label='Explicit Radiation', alpha=0.7)
     #ax[0].plot(times,Pbright1, '--r', lw=2, label='Q matrix: Bright', alpha=0.7)
-    ax[0].plot(times,Pbright2, '--r', lw=2, label='Explicit Radiation: Bright', alpha=0.7)
+    #ax[0].plot(times,Pbright2, '--r', lw=2, label='Explicit Radiation: Bright', alpha=0.7)
     #ax[0].plot(times,Pdark1, ':r', lw=2, label='Q matrix: Dark', alpha=0.7)
     ax[0].plot(times,Pdark2, ':b', lw=2, label='Explicit Radiation: Dark', alpha=0.7)
     ax[0].plot(times,np.array(Pmol2)+np.array(Prad_tot)+np.array(Pdamp_tot), '-.k', lw=2, label='total population')
@@ -303,11 +337,11 @@ if plotresult:
 
     for imol in range(Nmol):
         ax[1].plot(times,Emol[imol],label=str(imol))
-    # for it in range(Ntimes/Nslice-1):
-    #     ax[2].plot(Erad,Prad[it],label=str((it+1)*Nslice*dt))
-    #     ax[2].legend()
-    ax[2].plot(times,IPR1,lw=2, label='IPR1')
-    ax[2].plot(times,IPR2,lw=2, label='IPR2')
+    for it in range(Ntimes/Nslice-1):
+        ax[2].plot(Erad,Pdamp[it]+Prad[it],label=str((it+1)*Nslice*dt))
+        ax[2].legend()
+    # ax[2].plot(times,IPR1,lw=2, label='IPR1')
+    # ax[2].plot(times,IPR2,lw=2, label='IPR2')
     ax[2].legend()
     plt.tight_layout()
     plt.show()
