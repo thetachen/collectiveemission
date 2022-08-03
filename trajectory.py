@@ -2,12 +2,8 @@ import numpy as np
 
 class Trajectory():
 
-    def __init__(self,Nmol,mass,Kconst,staticCoup,dynamicCoup):
+    def __init__(self,Nmol):
         self.Nmol = Nmol
-        self.mass = mass
-        self.Kconst = Kconst
-        self.staticCoup = staticCoup
-        self.dynamicCoup = dynamicCoup
         self.Hmol = np.zeros((Nmol,Nmol),complex)
         self.Hmol_dt = np.zeros((Nmol,Nmol),complex)
         self.Cj = np.zeros((Nmol,1),complex)
@@ -16,7 +12,25 @@ class Trajectory():
         self.Rj = np.array(range(Nmol))
         np.random.seed()
 
-    def initialGaussian(self,kBT):
+    def initialHamiltonian(self,staticCoup,dynamicCoup):
+        self.staticCoup = staticCoup
+        self.dynamicCoup = dynamicCoup
+
+        for j in range(self.Nmol-1):
+            self.Hmol[j,j+1] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
+            self.Hmol[j+1,j] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
+            self.Hmol_dt[j,j+1] = self.dynamicCoup * (self.Vj[j+1]-self.Vj[j])
+            self.Hmol_dt[j+1,j] = self.dynamicCoup * (self.Vj[j+1]-self.Vj[j])
+
+        self.Hmol[0,-1] = -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
+        self.Hmol[-1,0] = -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
+        self.Hmol_dt[0,-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+        self.Hmol_dt[-1,0] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+
+    def initialGaussian(self,kBT,mass,Kconst):
+        self.mass = mass
+        self.Kconst = Kconst
+
         self.Xj = np.random.normal(0.0, kBT/self.Kconst, self.Nmol)
         self.Vj = np.random.normal(0.0, kBT/self.mass,   self.Nmol)
 

@@ -63,9 +63,9 @@ print(param_script.format(mass=mass,Kconst=Kconst,staticCoup=staticCoup,dynamicC
 
 fig, ax = plt.subplots(3)
 
-traj = Trajectory(Nmol,mass,Kconst,staticCoup,dynamicCoup)
-
-traj.initialGaussian(kBT)
+traj = Trajectory(Nmol)
+traj.initialHamiltonian(staticCoup,dynamicCoup)
+traj.initialGaussian(kBT,mass,Kconst)
 traj.updateHmol()
 traj.initialState(hbar,kBT,most_prob=True)
 # traj.Cj[(Nmol+1)/2] = np.sqrt(0.5)
