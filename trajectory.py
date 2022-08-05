@@ -1,5 +1,5 @@
 import numpy as np
-
+from copy import deepcopy
 class Trajectory_SSHmodel():
 
     def __init__(self,Nmol):
@@ -139,12 +139,11 @@ class Trajectory_TCmodel():
     def initialHamiltonian_Free(self,Wgrd,Wmol,Vrad,Wmax,damp):
         """
         Construct the Hamiltonian in the form of 
-        Ht = 
+        Ht0 = 
             | grd     | mol     | rad 
         grd | Hgrd    |         |         
         mol | Vmolgrd | Hmol    |
         rad | Vradgrd | Vradmol | Hrad
-
         """
         self.damp = damp
         self.Erad = np.zeros(self.Nrad)
@@ -172,12 +171,14 @@ class Trajectory_TCmodel():
         print(self.Gamma)
         
         drive = 0.0
-        self.Ht = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive,    Vradgrd.T )),
-                              np.hstack(( Vmolgrd*drive, Hmol,               Vradmol.T )),
-                              np.hstack(( Vradgrd,       Vradmol,            Hrad )) ))
+        self.Ht0 = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive,    Vradgrd.T )),
+                               np.hstack(( Vmolgrd*drive, Hmol,               Vradmol.T )),
+                               np.hstack(( Vradgrd,       Vradmol,            Hrad )) ))
+        self.Ht = deepcopy(self.Ht0)
 
-        self.HQ = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive )),
-                              np.hstack(( Vmolgrd*drive, Hmol - 1j*(self.Gamma/2)*Qmol )) ))        
+        self.HQ0 = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive )),
+                               np.hstack(( Vmolgrd*drive, Hmol - 1j*(self.Gamma/2)*Qmol )) ))        
+        self.HQ = deepcopy(self.HQ0)
 
         self.Imol = 1
         self.Irad = self.Nmol+1
@@ -185,20 +186,12 @@ class Trajectory_TCmodel():
     def initialHamiltonian_Cavity(self,Wgrd,Wcav,Wmol,Vcav,Vrad,Wmax,damp):
         """
         Construct the Hamiltonian in the form of 
-        Ht = 
+        Ht0 = 
             | grd     | cav     | mol     | rad 
         grd | Hgrd    |         |         |
         cav | Vcavgrd | Hcav    |         |  
         mol | Vmolgrd | Vmolcav | Hmol    |
         rad | Vradgrd | Vradcav | Vradmol | Hrad
-
-        or
-        Ht = 
-            | grd     | mol     | rad 
-        grd | Hgrd    |         |         
-        mol | Vmolgrd | Hmol    |
-        rad | Vradgrd | Vradmol | Hrad
-
         """
         self.damp = damp
         self.Erad = np.zeros(self.Nrad)
@@ -229,14 +222,14 @@ class Trajectory_TCmodel():
         print(self.Gamma)
         
         drive = 0.0
-        self.Ht = np.vstack(( np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive,    Vradgrd.T )),
-                              np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T,          Vradcav.T )),
-                              np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol,               Vradmol.T )),
-                              np.hstack(( Vradgrd,       Vradcav,       Vradmol,            Hrad )) ))
+        self.Ht0 = np.vstack(( np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive,    Vradgrd.T )),
+                               np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T,          Vradcav.T )),
+                               np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol,               Vradmol.T )),
+                               np.hstack(( Vradgrd,       Vradcav,       Vradmol,            Hrad )) ))
 
-        self.HQ = np.vstack(( np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive )),
-                              np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T       )),
-                              np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol - 1j*(self.Gamma/2)*Qmol )) ))      
+        self.HQ0 = np.vstack(( np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive )),
+                               np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T       )),
+                               np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol - 1j*(self.Gamma/2)*Qmol )) ))      
 
         self.Icav = 1
         self.Imol = 2
@@ -252,6 +245,52 @@ class Trajectory_TCmodel():
     #     self.Hmol[-1,0] = -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
     #     self.Hmol_dt[0,-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
     #     self.Hmol_dt[-1,0] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+
+    def updateDiagonalDynamicDisorder(self,Delta,TauC,dt):
+        # simulate Gaussian process
+        # cf. George B. Rybicki's note
+        # https://www.lanl.gov/DLDSTP/fast/OU_process.pdf
+        self.Ht = deepcopy(self.Ht0)
+        self.HQ = deepcopy(self.HQ0)
+
+        if not hasattr(self, 'Wdyn'):
+            self.Wdyn = np.random.normal(0.0,Delta,self.Nmol)
+        else:
+            ri = np.exp(-dt/TauC) * (TauC>0.0)
+            mean_it = ri*self.Wdyn
+            sigma_it = Delta*np.sqrt(1.0-ri**2)
+            self.Wdyn = np.random.normal(mean_it,sigma_it,self.Nmol)
+        
+        for j in range(self.Nmol): 
+            self.Ht[self.Imol+j,self.Imol+j] += self.Wdyn[j]
+            self.HQ[self.Imol+j,self.Imol+j] += self.Wdyn[j]
+
+
+    def updateNeighborDynamicDisorder(self,Delta,TauC,dt):
+        # simulate Gaussian process
+        # cf. George B. Rybicki's note
+        # https://www.lanl.gov/DLDSTP/fast/OU_process.pdf
+        self.Ht = deepcopy(self.Ht0)
+        self.HQ = deepcopy(self.HQ0)
+
+        if not hasattr(self, 'Vdyn'):
+            self.Vdyn = np.random.normal(0.0,Delta,self.Nmol)
+        else:
+            ri = np.exp(-dt/TauC) * (TauC>0.0)
+            mean_it = ri*self.Vdyn
+            sigma_it = Delta*np.sqrt(1.0-ri**2)
+            self.Vdyn = np.random.normal(mean_it,sigma_it,self.Nmol)
+        
+        for j in range(self.Nmol-1): 
+            self.Ht[self.Imol+j,   self.Imol+j+1] += self.Vdyn[j]
+            self.Ht[self.Imol+j+1, self.Imol+j]   += self.Vdyn[j]
+            self.HQ[self.Imol+j,   self.Imol+j+1] += self.Vdyn[j]        
+            self.HQ[self.Imol+j+1, self.Imol+j]   += self.Vdyn[j]
+        
+        self.Ht[self.Imol,self.Imol+self.Nmol-1] += self.Vdyn[-1]
+        self.Ht[self.Imol+self.Nmol-1,self.Imol] += self.Vdyn[-1]
+        self.HQ[self.Imol,self.Imol+self.Nmol-1] += self.Vdyn[-1]
+        self.HQ[self.Imol+self.Nmol-1,self.Imol] += self.Vdyn[-1]
 
     def initialState(self,InitialState="Bright"):
         # Initialize state vector

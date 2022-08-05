@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from trajectory import Trajectory
+from trajectory import Trajectory_SSHmodel
 
 param_script="""
 This test case is designed to reproduce: PRL 96, 086601 (2006)
@@ -61,9 +61,7 @@ Nmol = 601
 
 print(param_script.format(mass=mass,Kconst=Kconst,staticCoup=staticCoup,dynamicCoup=dynamicCoup,kBT=kBT))
 
-fig, ax = plt.subplots(3)
-
-traj = Trajectory(Nmol)
+traj = Trajectory_SSHmodel(Nmol)
 traj.initialHamiltonian(staticCoup,dynamicCoup)
 traj.initialGaussian(kBT,mass,Kconst)
 traj.updateHmol()
