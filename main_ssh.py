@@ -93,7 +93,7 @@ for it in range(Ntimes):
         Displacement = traj.getDisplacement()
         Population = np.linalg.norm(traj.Cj)
         times.append(time)
-        print("{t}\t{d}\t{dp}".format(t=time,d=Displacement, dp=Population-1.0))
+        print("{t}\t{d}\t{dp}\t{dE}".format(t=time,d=Displacement, dp=Population-1.0,dE=traj.getEnergy()-E0))
         Displacement_list.append(Displacement)
         Ej_list.append(traj.getEnergy())
         Xj_list.append(traj.Xj)

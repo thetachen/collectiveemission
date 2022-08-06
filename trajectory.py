@@ -10,7 +10,7 @@ class Trajectory_SSHmodel():
         self.Xj = np.zeros(Nmol)
         self.Vj = np.zeros(Nmol)
         self.Rj = np.array(range(Nmol))
-        np.random.seed()
+        np.random.seed(1000)
 
     def initialHamiltonian(self,staticCoup,dynamicCoup):
         self.staticCoup = staticCoup
@@ -122,21 +122,14 @@ class Trajectory_SSHmodel():
         R2 = np.abs( np.sum((self.Rj-R)**2 *np.abs(self.Cj.T)**2) ) 
         return R2
 
-class Trajectory_TCmodel():
+class SingleExcitationWithCollectiveCoupling():
 
     def __init__(self,Nmol,Nrad):
         self.Nmol = Nmol
         self.Nrad = Nrad
-        self.Hmol = np.zeros((Nmol,Nmol),complex)
-        self.Hmol_dt = np.zeros((Nmol,Nmol),complex)
-        self.Cj = np.zeros((Nmol,1),complex)
-        self.Xj = np.zeros(Nmol)
-        self.Vj = np.zeros(Nmol)
-        self.Rj = np.array(range(Nmol))
-        
-        np.random.seed()
+        np.random.seed(1000)
 
-    def initialHamiltonian_Free(self,Wgrd,Wmol,Vrad,Wmax,damp):
+    def initialHamiltonian_Radiation(self,Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=False):
         """
         Construct the Hamiltonian in the form of 
         Ht0 = 
@@ -145,12 +138,12 @@ class Trajectory_TCmodel():
         mol | Vmolgrd | Hmol    |
         rad | Vradgrd | Vradmol | Hrad
         """
+        self.useQmatrix = useQmatrix
         self.damp = damp
         self.Erad = np.zeros(self.Nrad)
 
         Hgrd = np.eye(1) * Wgrd
         Hmol = np.eye(self.Nmol) * Wmol
-        Qmol = np.ones((self.Nmol,self.Nmol))
         Hrad = np.zeros((self.Nrad,self.Nrad),complex)
 
         Vradmol = np.zeros((self.Nrad,self.Nmol),complex)
@@ -171,19 +164,20 @@ class Trajectory_TCmodel():
         print(self.Gamma)
         
         drive = 0.0
-        self.Ht0 = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive,    Vradgrd.T )),
-                               np.hstack(( Vmolgrd*drive, Hmol,               Vradmol.T )),
-                               np.hstack(( Vradgrd,       Vradmol,            Hrad )) ))
+        if useQmatrix:
+            Qmol = np.ones((self.Nmol,self.Nmol))
+            self.Ht0 = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive               )),
+                                   np.hstack(( Vmolgrd*drive, Hmol - 1j*(self.Gamma/2)*Qmol )) ))        
+        else:
+            self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vmolgrd.T*drive,    Vradgrd.T    )),
+                                    np.hstack(( Vmolgrd*drive, Hmol,               Vradmol.T    )),
+                                    np.hstack(( Vradgrd,       Vradmol,            Hrad         )) ))
         self.Ht = deepcopy(self.Ht0)
-
-        self.HQ0 = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive )),
-                               np.hstack(( Vmolgrd*drive, Hmol - 1j*(self.Gamma/2)*Qmol )) ))        
-        self.HQ = deepcopy(self.HQ0)
 
         self.Imol = 1
         self.Irad = self.Nmol+1
 
-    def initialHamiltonian_Cavity(self,Wgrd,Wcav,Wmol,Vcav,Vrad,Wmax,damp):
+    def initialHamiltonian_Cavity(self,Wgrd,Wcav,Wmol,Vcav,Vrad,Wmax,damp,useQmatrix=False):
         """
         Construct the Hamiltonian in the form of 
         Ht0 = 
@@ -193,13 +187,13 @@ class Trajectory_TCmodel():
         mol | Vmolgrd | Vmolcav | Hmol    |
         rad | Vradgrd | Vradcav | Vradmol | Hrad
         """
+        self.useQmatrix = useQmatrix
         self.damp = damp
         self.Erad = np.zeros(self.Nrad)
 
         Hgrd = np.eye(1) * Wgrd
         Hcav = np.eye(1) * Wcav
         Hmol = np.eye(self.Nmol) * Wmol
-        Qmol = np.ones((self.Nmol,self.Nmol))
         Hrad = np.zeros((self.Nrad,self.Nrad),complex)
 
         Vradmol = np.zeros((self.Nrad,self.Nmol),complex)
@@ -222,56 +216,50 @@ class Trajectory_TCmodel():
         print(self.Gamma)
         
         drive = 0.0
-        self.Ht0 = np.vstack(( np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive,    Vradgrd.T )),
-                               np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T,          Vradcav.T )),
-                               np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol,               Vradmol.T )),
-                               np.hstack(( Vradgrd,       Vradcav,       Vradmol,            Hrad )) ))
-
-        self.HQ0 = np.vstack(( np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive )),
-                               np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T       )),
-                               np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol - 1j*(self.Gamma/2)*Qmol )) ))      
+        if useQmatrix:
+            Qmol = np.ones((self.Nmol,self.Nmol))
+            self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive               )),
+                                    np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T                     )),
+                                    np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol - 1j*(self.Gamma/2)*Qmol )) ))
+        else:
+            self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive,    Vradgrd.T )),
+                                    np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T,          Vradcav.T )),
+                                    np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol,               Vradmol.T )),
+                                    np.hstack(( Vradgrd,       Vradcav,       Vradmol,            Hrad      )) ))
 
         self.Icav = 1
         self.Imol = 2
         self.Irad = self.Nmol+2
-    # def updateHmol(self):
-    #     for j in range(self.Nmol-1):
-    #         self.Hmol[j,j+1] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
-    #         self.Hmol[j+1,j] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
-    #         self.Hmol_dt[j,j+1] = self.dynamicCoup * (self.Vj[j+1]-self.Vj[j])
-    #         self.Hmol_dt[j+1,j] = self.dynamicCoup * (self.Vj[j+1]-self.Vj[j])
 
-    #     self.Hmol[0,-1] = -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
-    #     self.Hmol[-1,0] = -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
-    #     self.Hmol_dt[0,-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
-    #     self.Hmol_dt[-1,0] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+    def updateDiagonalStaticDisorder(self,Delta):
+        self.Ht = deepcopy(self.Ht0)
+
+        self.Wstc = np.random.normal(0.0,Delta,self.Nmol) + self.Wmol
+        for j in range(self.Nmol): 
+            self.Ht[self.Imol+j,self.Imol+j] += self.Wstc[j]
 
     def updateDiagonalDynamicDisorder(self,Delta,TauC,dt):
         # simulate Gaussian process
         # cf. George B. Rybicki's note
         # https://www.lanl.gov/DLDSTP/fast/OU_process.pdf
         self.Ht = deepcopy(self.Ht0)
-        self.HQ = deepcopy(self.HQ0)
 
         if not hasattr(self, 'Wdyn'):
-            self.Wdyn = np.random.normal(0.0,Delta,self.Nmol)
+            self.Wdyn = np.random.normal(0.0,Delta,self.Nmol) + self.Wmol
         else:
             ri = np.exp(-dt/TauC) * (TauC>0.0)
             mean_it = ri*self.Wdyn
             sigma_it = Delta*np.sqrt(1.0-ri**2)
-            self.Wdyn = np.random.normal(mean_it,sigma_it,self.Nmol)
+            self.Wdyn = np.random.normal(mean_it,sigma_it,self.Nmol) + self.Wmol
         
         for j in range(self.Nmol): 
             self.Ht[self.Imol+j,self.Imol+j] += self.Wdyn[j]
-            self.HQ[self.Imol+j,self.Imol+j] += self.Wdyn[j]
-
 
     def updateNeighborDynamicDisorder(self,Delta,TauC,dt):
         # simulate Gaussian process
         # cf. George B. Rybicki's note
         # https://www.lanl.gov/DLDSTP/fast/OU_process.pdf
         self.Ht = deepcopy(self.Ht0)
-        self.HQ = deepcopy(self.HQ0)
 
         if not hasattr(self, 'Vdyn'):
             self.Vdyn = np.random.normal(0.0,Delta,self.Nmol)
@@ -284,74 +272,131 @@ class Trajectory_TCmodel():
         for j in range(self.Nmol-1): 
             self.Ht[self.Imol+j,   self.Imol+j+1] += self.Vdyn[j]
             self.Ht[self.Imol+j+1, self.Imol+j]   += self.Vdyn[j]
-            self.HQ[self.Imol+j,   self.Imol+j+1] += self.Vdyn[j]        
-            self.HQ[self.Imol+j+1, self.Imol+j]   += self.Vdyn[j]
         
         self.Ht[self.Imol,self.Imol+self.Nmol-1] += self.Vdyn[-1]
         self.Ht[self.Imol+self.Nmol-1,self.Imol] += self.Vdyn[-1]
-        self.HQ[self.Imol,self.Imol+self.Nmol-1] += self.Vdyn[-1]
-        self.HQ[self.Imol+self.Nmol-1,self.Imol] += self.Vdyn[-1]
 
-    def initialState(self,InitialState="Bright"):
+    def updateNeighborHarmonicOscillator(self,staticCoup,dynamicCoup):
+        self.Ht = deepcopy(self.Ht0)
+
+        if not hasattr(self, 'dHdt'):
+            self.dHdt = np.zeros_like(self.Ht0)
+
+        self.staticCoup = staticCoup
+        self.dynamicCoup = dynamicCoup
+
+        for j in range(self.Nmol-1):
+            self.Ht[self.Imol+j,   self.Imol+j+1] += -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
+            self.Ht[self.Imol+j+1, self.Imol+j]   += -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
+            self.dHdt[self.Imol+j,   self.Imol+j+1] = self.dynamicCoup * (self.Vj[j+1]-self.Vj[j])
+            self.dHdt[self.Imol+j+1, self.Imol+j]   = self.dynamicCoup * (self.Vj[j+1]-self.Vj[j])
+
+        self.Ht[self.Imol,self.Imol+self.Nmol-1] += -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
+        self.Ht[self.Imol+self.Nmol-1,self.Imol] += -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
+        self.dHdt[self.Imol,self.Imol+self.Nmol-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+        self.dHdt[self.Imol+self.Nmol-1,self.Imol] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+
+    def initialCj_Bright(self):
+        self.Cj = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    np.zeros((1,1),complex),  #cav
+                                    self.Cj) )                #mol
+        else:
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    self.Cj) )                #mol
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+
+    def initialCj_Ground(self):
+        self.Cj = np.zeros((self.Nmol,1),complex)
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.ones((1,1),complex),   #grd
+                                    np.zeros((1,1),complex),  #cav
+                                    self.Cj) )                #mol
+        else:  
+            self.Cj = np.vstack( (np.ones((1,1),complex),   #grd
+                                    self.Cj) )                #mol          
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+
+    def initialCj_Random(self):      
+        self.Cj = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)*np.exp(1j*2*np.pi*np.random.rand(self.Nmol,1))
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                                    np.zeros((1,1),complex),  #cav 
+                                    self.Cj) )                #mol
+        else:
+            self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                                    self.Cj) )                #mol
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+
+    def initialCj_Boltzman(self,hbar,kBT,most_prob=False):
+        """
+        Choose the initial state from the set of eigenfunctions based on Boltzman distribution exp(-E_n/kBT)
+        """
+        # Use the updated Hamiltonian with this initial intermolecular coupling
+        Hmol = self.Ht[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol]
+
+        W,U = np.linalg.eigh(Hmol)
+        #idx = W.argsort()[::-1]   
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+
+        self.Prob = np.exp(-W*hbar/kBT)
+        self.Prob = self.Prob/np.sum(self.Prob)
+
+        rand = np.random.random()
+        
+        Prob_cum = np.cumsum(self.Prob)
+        initial_state = 0
+        while rand > Prob_cum[initial_state]:
+            initial_state += 1
+        initial_state -= 1
+
+        # print(rand, Prob_cum[initial_state],Prob_cum[initial_state+1])
+        if most_prob:   
+            initial_state = np.argmax(self.Prob) # most probable state
+        
+        self.Prob = self.Prob[initial_state]
+
         # Initialize state vector
-        if InitialState == "Bright":
-            self.Cj1 = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)
-            if hasattr(self, 'Icav'):
-                self.Cj1 = np.vstack( (np.zeros((1,1),complex), #grd
-                                       np.zeros((1,1),complex), #cav
-                                       self.Cj1) )              #mol
-            else:
-                self.Cj1 = np.vstack( (np.zeros((1,1),complex), #grd
-                                       self.Cj1) )              #mol
-        elif InitialState == "Ground":
-            self.Cj1 = np.zeros((self.Nmol,1),complex)
-            if hasattr(self, 'Icav'):
-                self.Cj1 = np.vstack( (np.ones((1,1),complex),  #grd
-                                       np.zeros((1,1),complex), #cav
-                                       self.Cj1) ) #mol
-            else:  
-                self.Cj1 = np.vstack( (np.ones((1,1),complex),  #grd
-                                       self.Cj1) )              #mol                
-        elif InitialState == "Random":
-            self.Cj1 = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)*np.exp(1j*2*np.pi*np.random.rand(self.Nmol,1))
-            if hasattr(self, 'Icav'):
-                self.Cj1 = np.vstack( (np.zeros((1,1),complex), #grd
-                                       np.zeros((1,1),complex), #cav 
-                                       self.Cj1) )              #mol
-            else:
-                self.Cj1 = np.vstack( (np.zeros((1,1),complex), #grd
-                                       self.Cj1) )              #mol
-
-        self.Cj2 = np.vstack( (self.Cj1,np.zeros((self.Nrad,1),complex)) )
-
+        self.Cj = U.T[initial_state]
+        self.Cj = self.Cj[..., None] 
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                                  np.zeros((1,1),complex),  #cav
+                                  self.Cj) )                #mol
+        else:
+            self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                                  self.Cj) )                #mol
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
 
     def propagateCj_RK4(self,dt):
-        # self.Cj = self.Cj - 1j*dt*np.dot(self.Hmol,self.Cj) \
-        #           -0.5*dt**2*np.dot(self.Hmol,np.dot(self.Hmol,self.Cj)) \
-        #           -0.5*1j*dt**2*np.dot(self.Hmol_dt,self.Cj)
-
         ### RK4 propagation 
-        K1 = -1j*np.dot(self.HQ,self.Cj1)
-        K2 = -1j*np.dot(self.HQ,self.Cj1+dt*K1/2)
-        K3 = -1j*np.dot(self.HQ,self.Cj1+dt*K2/2)
-        K4 = -1j*np.dot(self.HQ,self.Cj1+dt*K3)
-        self.Cj1 += (K1+2*K2+2*K3+K4)*dt/6
+        K1 = -1j*np.dot(self.Ht,self.Cj)
+        K2 = -1j*np.dot(self.Ht,self.Cj+dt*K1/2)
+        K3 = -1j*np.dot(self.Ht,self.Cj+dt*K2/2)
+        K4 = -1j*np.dot(self.Ht,self.Cj+dt*K3)
+        self.Cj += (K1+2*K2+2*K3+K4)*dt/6
 
-        K1 = -1j*np.dot(self.Ht,self.Cj2)
-        K2 = -1j*np.dot(self.Ht,self.Cj2+dt*K1/2)
-        K3 = -1j*np.dot(self.Ht,self.Cj2+dt*K2/2)
-        K4 = -1j*np.dot(self.Ht,self.Cj2+dt*K3)
-        self.Cj2 += (K1+2*K2+2*K3+K4)*dt/6
+    def propagateCj_dHdt(self,dt):
+        self.Cj = self.Cj - 1j*dt*np.dot(self.Ht,self.Cj) \
+                   -0.5*dt**2*np.dot(self.Ht,np.dot(self.Ht,self.Cj)) \
+                   -0.5*1j*dt**2*np.dot(self.dHdt,self.Cj)
 
-    def initialGaussian(self,kBT,mass,Kconst):
+    def initialXjVj_Gaussian(self,kBT,mass,Kconst):
+        self.kBT = kBT
         self.mass = mass
         self.Kconst = Kconst
 
-        self.Xj = np.random.normal(0.0, kBT/self.Kconst, self.Nmol)
-        self.Vj = np.random.normal(0.0, kBT/self.mass,   self.Nmol)
-
-
-    def velocityVerlet(self,dt):
+        self.Xj = np.random.normal(0.0, self.kBT/self.Kconst, self.Nmol)
+        self.Vj = np.random.normal(0.0, self.kBT/self.mass,   self.Nmol)
+        
+    def propagateXjVj_velocityVerlet(self,dt):
         """
         We use the algorithm with eliminating the half-step velocity
         https://en.wikipedia.org/wiki/Verlet_integration
@@ -360,14 +405,14 @@ class Trajectory_TCmodel():
         Aj = -self.Kconst/self.mass * self.Xj
         for j in range(1,self.Nmol-1):
             Aj[j] = Aj[j] -self.dynamicCoup/self.mass* \
-                    ( 2*np.real(np.conj(self.Cj[j])*self.Cj[j-1]) \
-                    - 2*np.real(np.conj(self.Cj[j])*self.Cj[j+1]))
+                    ( 2*np.real(np.conj(self.Cj[self.Imol+j])*self.Cj[self.Imol+j-1]) \
+                    - 2*np.real(np.conj(self.Cj[self.Imol+j])*self.Cj[self.Imol+j+1]))
         Aj[0] = Aj[0] -self.dynamicCoup/self.mass* \
-                ( 2*np.real(np.conj(self.Cj[0])*self.Cj[-1]) \
-                - 2*np.real(np.conj(self.Cj[0])*self.Cj[1]))
+                ( 2*np.real(np.conj(self.Cj[self.Imol+0])*self.Cj[self.Imol+self.Nmol-1]) \
+                - 2*np.real(np.conj(self.Cj[self.Imol+0])*self.Cj[self.Imol+1]))
         Aj[-1] = Aj[-1] -self.dynamicCoup/self.mass* \
-                    ( 2*np.real(np.conj(self.Cj[-1])*self.Cj[-2]) \
-                    - 2*np.real(np.conj(self.Cj[-1])*self.Cj[0]))
+                    ( 2*np.real(np.conj(self.Cj[self.Imol+self.Nmol-1])*self.Cj[self.Imol+self.Nmol-2]) \
+                    - 2*np.real(np.conj(self.Cj[self.Imol+self.Nmol-1])*self.Cj[self.Imol]))
         # 2: calculate Xj(t+dt)
         self.Xj = self.Xj + self.Vj*dt + 0.5*dt**2*Aj
         # 3: calculate Aj(t+dt)+Aj(t)
@@ -382,6 +427,7 @@ class Trajectory_TCmodel():
     def getDisplacement(self):
         # print(np.sum(np.abs(self.Cj.T)**2))
         # R2 = np.abs( np.sum(self.Rj**2 *np.abs(self.Cj.T)**2) ) 
-        R =  np.abs( np.sum(self.Rj    *np.abs(self.Cj.T)**2) ) 
-        R2 = np.abs( np.sum((self.Rj-R)**2 *np.abs(self.Cj.T)**2) ) 
+        Rj = np.array(range(self.Nmol))
+        R =  np.abs( np.sum( Rj       *np.abs(self.Cj[self.Imol:self.Imol+self.Nmol].T)**2) ) 
+        R2 = np.abs( np.sum((Rj-R)**2 *np.abs(self.Cj[self.Imol:self.Imol+self.Nmol].T)**2) ) 
         return R2
