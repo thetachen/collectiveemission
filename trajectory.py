@@ -10,7 +10,7 @@ class Trajectory_SSHmodel():
         self.Xj = np.zeros(Nmol)
         self.Vj = np.zeros(Nmol)
         self.Rj = np.array(range(Nmol))
-        np.random.seed(1000)
+        np.random.seed(1000) #TODO should not use the same seed 
 
     def initialHamiltonian(self,staticCoup,dynamicCoup):
         self.staticCoup = staticCoup
@@ -127,7 +127,7 @@ class SingleExcitationWithCollectiveCoupling():
     def __init__(self,Nmol,Nrad):
         self.Nmol = Nmol
         self.Nrad = Nrad
-        np.random.seed(1000)
+        np.random.seed(1000) #TODO should not use the same seed 
 
     def initialHamiltonian_Radiation(self,Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=False):
         """
@@ -138,6 +138,7 @@ class SingleExcitationWithCollectiveCoupling():
         mol | Vmolgrd | Hmol    |
         rad | Vradgrd | Vradmol | Hrad
         """
+        self.Wmol = Wmol
         self.useQmatrix = useQmatrix
         self.damp = damp
         self.Erad = np.zeros(self.Nrad)
@@ -161,7 +162,7 @@ class SingleExcitationWithCollectiveCoupling():
             Gamma += -2.0*1j*(Vradmol[j,0]**2)/Hrad[j,j] # set to be the same: 0
         #Gamma = 1j*Gamma*(Vrad**2)
         self.Gamma = np.real(Gamma)
-        print(self.Gamma)
+        # print(self.Gamma)
         
         drive = 0.0
         if useQmatrix:
@@ -187,6 +188,7 @@ class SingleExcitationWithCollectiveCoupling():
         mol | Vmolgrd | Vmolcav | Hmol    |
         rad | Vradgrd | Vradcav | Vradmol | Hrad
         """
+        self.Wmol = Wmol
         self.useQmatrix = useQmatrix
         self.damp = damp
         self.Erad = np.zeros(self.Nrad)
@@ -213,7 +215,7 @@ class SingleExcitationWithCollectiveCoupling():
             Gamma += -2.0*1j*(Vradmol[j,0]**2)/Hrad[j,j] # set to be the same: 0
         #Gamma = 1j*Gamma*(Vrad**2)
         self.Gamma = np.real(Gamma)
-        print(self.Gamma)
+        # print(self.Gamma)
         
         drive = 0.0
         if useQmatrix:
@@ -384,6 +386,8 @@ class SingleExcitationWithCollectiveCoupling():
         self.Cj += (K1+2*K2+2*K3+K4)*dt/6
 
     def propagateCj_dHdt(self,dt):
+        if not hasattr(self, 'dHdt'):
+            self.dHdt = np.zeros_like(self.Ht0)
         self.Cj = self.Cj - 1j*dt*np.dot(self.Ht,self.Cj) \
                    -0.5*dt**2*np.dot(self.Ht,np.dot(self.Ht,self.Cj)) \
                    -0.5*1j*dt**2*np.dot(self.dHdt,self.Cj)
@@ -420,6 +424,24 @@ class SingleExcitationWithCollectiveCoupling():
         # 4: calculate Vj(t+dt)
         self.Vj = self.Vj + 0.5*dt*Aj
 
+    def getPopulation_system(self):
+        return np.linalg.norm(self.Cj[self.Imol:self.Imol+self.Nmol])**2
+
+    def getPopulation_radiation(self):
+        if not self.useQmatrix:
+            return np.linalg.norm(self.Cj[self.Irad:])**2
+        else:
+            return 0.0
+            
+    def getPopulation_cavity(self):
+        if hasattr(self, 'Icav'):
+            return np.abs(self.Cj[self.Icav])**2
+        else:
+            return 0.0
+
+    def getIPR(self):
+        return np.linalg.norm(self.Cj[self.Imol:self.Imol+self.Nmol])**4 \
+                / np.sum(np.abs(self.Cj[self.Imol:self.Imol+self.Nmol])**4)
 
     def getEnergy(self):
         return 0.5*self.mass*np.linalg.norm(self.Vj)**2 + 0.5*self.Kconst*np.linalg.norm(self.Xj)**2
