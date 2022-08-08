@@ -16,7 +16,7 @@ if '--plot' in sys.argv:
 
 
 if 'param.in' in sys.argv:
-    exec(open('param.in').read())()
+    exec(open('param.in').read())
 else:
     dt = 0.001
     Ntimes = 1000
