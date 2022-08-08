@@ -2,7 +2,7 @@ import numpy as np
 from copy import deepcopy
 class Trajectory_SSHmodel():
 
-    def __init__(self,Nmol):
+    def __init__(self,Nmol,seed=None):
         self.Nmol = Nmol
         self.Hmol = np.zeros((Nmol,Nmol),complex)
         self.Hmol_dt = np.zeros((Nmol,Nmol),complex)
@@ -10,7 +10,7 @@ class Trajectory_SSHmodel():
         self.Xj = np.zeros(Nmol)
         self.Vj = np.zeros(Nmol)
         self.Rj = np.array(range(Nmol))
-        np.random.seed(1000) #TODO should not use the same seed 
+        np.random.seed(seed)
 
     def initialHamiltonian(self,staticCoup,dynamicCoup):
         self.staticCoup = staticCoup
@@ -124,10 +124,10 @@ class Trajectory_SSHmodel():
 
 class SingleExcitationWithCollectiveCoupling():
 
-    def __init__(self,Nmol,Nrad):
+    def __init__(self,Nmol,Nrad,seed=None):
         self.Nmol = Nmol
         self.Nrad = Nrad
-        np.random.seed(1000) #TODO should not use the same seed 
+        np.random.seed(seed)
 
     def initialHamiltonian_Radiation(self,Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=False):
         """
@@ -330,6 +330,20 @@ class SingleExcitationWithCollectiveCoupling():
                                     self.Cj) )                #mol
         else:
             self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                                    self.Cj) )                #mol
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+
+    def initialCj_middle(self):
+        self.Cj = np.zeros((self.Nmol,1),complex)
+        self.Cj[int(self.Nmol/2)] = 1.0
+
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    np.zeros((1,1),complex),  #cav
+                                    self.Cj) )                #mol
+        else:
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
                                     self.Cj) )                #mol
         if not self.useQmatrix:
             self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
