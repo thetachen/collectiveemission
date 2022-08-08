@@ -228,7 +228,8 @@ class SingleExcitationWithCollectiveCoupling():
                                     np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T,          Vradcav.T )),
                                     np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol,               Vradmol.T )),
                                     np.hstack(( Vradgrd,       Vradcav,       Vradmol,            Hrad      )) ))
-
+        self.Ht = deepcopy(self.Ht0)
+        
         self.Icav = 1
         self.Imol = 2
         self.Irad = self.Nmol+2
@@ -256,6 +257,19 @@ class SingleExcitationWithCollectiveCoupling():
         
         for j in range(self.Nmol): 
             self.Ht[self.Imol+j,self.Imol+j] += self.Wdyn[j]
+
+    def updateNeighborStaticDisorder(self,Delta):
+        self.Ht = deepcopy(self.Ht0)
+
+        if not hasattr(self, 'Vstc'):
+            self.Vstc = np.random.normal(0.0,Delta,self.Nmol)
+        
+        for j in range(self.Nmol-1): 
+            self.Ht[self.Imol+j,   self.Imol+j+1] += self.Vstc[j]
+            self.Ht[self.Imol+j+1, self.Imol+j]   += self.Vstc[j]
+        
+        self.Ht[self.Imol,self.Imol+self.Nmol-1] += self.Vstc[-1]
+        self.Ht[self.Imol+self.Nmol-1,self.Imol] += self.Vstc[-1]
 
     def updateNeighborDynamicDisorder(self,Delta,TauC,dt):
         # simulate Gaussian process
@@ -297,6 +311,18 @@ class SingleExcitationWithCollectiveCoupling():
         self.Ht[self.Imol+self.Nmol-1,self.Imol] += -self.staticCoup + self.dynamicCoup * (self.Xj[0]-self.Xj[-1])
         self.dHdt[self.Imol,self.Imol+self.Nmol-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
         self.dHdt[self.Imol+self.Nmol-1,self.Imol] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
+
+    def initialCj_Cavity(self):
+        self.Cj = np.zeros((self.Nmol,1),complex)
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    np.ones((1,1),complex),  #cav
+                                    self.Cj) )                #mol
+        else:
+            print("cannot initial Cj in the cavity state when there is no cavity")
+            exit()
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
 
     def initialCj_Bright(self):
         self.Cj = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)
