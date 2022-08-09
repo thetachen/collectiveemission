@@ -19,7 +19,7 @@ if 'param.in' in sys.argv:
     exec(open('param.in').read())
 else:
     dt = 0.001
-    Ntimes = 10000
+    Ntimes = 5000
     Nskip = 100
 
     Nmol = 601
@@ -27,39 +27,41 @@ else:
     Wgrd = -1.0
 
     Wcav = 0.0
-    Vcav = 0.1
+    Vcav = 0.02
 
     Nrad = 1001
     Wmax = 1.0
     damp = 0.005
-    Vrad = 0.001/5 *0
+    Vrad = 0.001/5
 
+    useStaticDisorder = False 
+    useDynamicDisorder = False
     Delta = 1.0
     TauC = 0.1
 
-    hbar = 63.508
-    mass = 10000.0  # Joul/mol(ps/A)^2
-    Kconst = 145000.0  # Joul/mol/A^2
-    staticCoup = 0.0 # 1/ps
-    dynamicCoup = 0.0 # 1/ps/A
-    kBT = 1245.0 #Joul/mol
+    # hbar = 63.508
+    # mass = 10000.0  # Joul/mol(ps/A)^2
+    # Kconst = 145000.0  # Joul/mol/A^2
+    # staticCoup = 0.0 # 1/ps
+    # dynamicCoup = 0.0 # 1/ps/A
+    # kBT = 1245.0 #Joul/mol
     
 model1 = SingleExcitationWithCollectiveCoupling(Nmol,Nrad)
 
-# model1.initialHamiltonian_Radiation(Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=True)
-model1.initialHamiltonian_Cavity(Wgrd,Wcav,Wmol,Vcav,Vrad,Wmax,damp,useQmatrix=True)
+# model1.initialHamiltonian_Radiation(Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=False)
+model1.initialHamiltonian_Cavity(Wgrd,Wcav,Wmol,Vcav,Vrad,Wmax,damp,useQmatrix=False)
 
 # model1.initialXjVj_Gaussian(kBT,mass,Kconst)
 # model1.updateNeighborHarmonicOscillator(staticCoup,dynamicCoup)
-# model1.updateNeighborStaticDisorder(Delta)
+if useStaticDisorder:
+    model1.updateNeighborStaticDisorder(Delta)
+if useDynamicDisorder:
+    model1.updateNeighborDynamicDisorder(Delta,TauC,dt)
 
 # model1.initialCj_Bright()
 # model1.initialCj_middle()
 model1.initialCj_Cavity()
 # model1.initialCj_Boltzman(hbar,kBT,most_prob=True)
-
-print('std(X)*dynamicCoup = {std}'.format(std=kBT/Kconst * dynamicCoup) )
-print('Gamma = {Gamma}'.format(Gamma = model1.Gamma))
 
 times = []
 Pmol1, Pmol2 = [], []
@@ -74,9 +76,9 @@ Pdamp_int = np.zeros((Nrad,1))
 for it in range(Ntimes):
     # model1.propagateXjVj_velocityVerlet(dt)
     # model2.propagateXjVj_velocityVerlet(dt)
-
-    # model1.updateDiagonalDynamicDisorder(Delta,TauC,dt)
-    # model1.updateNeighborDynamicDisorder(Delta,TauC,dt)
+    if useDynamicDisorder:
+        # model1.updateDiagonalDynamicDisorder(Delta,TauC,dt)
+        model1.updateNeighborDynamicDisorder(Delta,TauC,dt)
     # model1.updateNeighborHarmonicOscillator(staticCoup,dynamicCoup)
 
     model1.propagateCj_RK4(dt)
@@ -84,7 +86,7 @@ for it in range(Ntimes):
     # model1.propagateCj_dHdt(dt)
     
     
-    # Pdamp_int = Pdamp_int + (2*damp*dt)*np.abs(model2.Cj[model2.Irad:])**2
+    Pdamp_int = Pdamp_int + (2*damp*dt)*np.abs(model1.Cj[model1.Irad:])**2
 
     if it%Nskip==0:
         times.append( it*dt )
@@ -94,17 +96,17 @@ for it in range(Ntimes):
         IPR1.append( model1.getIPR() )
         # IPR2.append( model2.getIPR() )
 
-        # Prad.append( np.abs(model2.Cj[model2.Irad:])**2)
-        # Pdamp.append( Pdamp_int )
-        # Prad_tot.append( model2.getPopulation_radiation() )
-        # Pdamp_tot.append( np.sum(Pdamp_int) )
+        Prad.append( np.abs(model1.Cj[model1.Irad:])**2)
+        Pdamp.append( Pdamp_int )
+        Prad_tot.append( model1.getPopulation_radiation() )
+        Pdamp_tot.append( np.sum(Pdamp_int) )
 
         # Xj_list.append(model1.Xj)
         # Vj_list.append(model1.Vj)
         distr_list.append(np.abs(model1.Cj[model1.Imol:model1.Imol+model1.Nmol])**2)
         Displacement_list.append(model1.getDisplacement())
         if printOutput:
-            print("{t}\t{d}\t{dP}".format(t=it*dt,d=model1.getDisplacement(),dP=model1.getPopulation_system()))
+            print("{t}\t{d}\t{dP}".format(t=it*dt,d=np.sqrt(model1.getDisplacement()),dP=model1.getPopulation_system()))
                                                 # dE=model1.getEnergy()-E0 ))
 
 if not plotResult:
@@ -112,6 +114,13 @@ if not plotResult:
     fpop = open('Pmol.dat'+sys.argv[-1], 'w')
     for it in range(len(times)):
         fpop.write("{t}\t{Pmol}\n".format(t=times[it],Pmol=Pmol1[it]))
+
+    frad = open('rad.dat'+sys.argv[-1], 'w')
+    for j in range(len(model1.Erad)):
+        frad.write(str(round(model1.Erad[j],4)))
+        for i in range(len(Prad)):
+            frad.write('\t'+'{:2.10f}'.format(Prad[i][j][0]))
+        frad.write('\n')
 
     fdis = open('Displacement.dat'+sys.argv[-1], 'w')
     for it in range(len(times)):
@@ -132,19 +141,19 @@ if plotResult:
     ax[0].set_ylabel("$P_{mol}$")
     ax[0].legend()
 
-    # Xgrid, Ygrid = np.meshgrid(model2.Erad, times)
-    # Zgrid = Prad[:,:,0] + Pdamp[:,:,0]
-    # ax[1].contourf(Xgrid, Ygrid, Zgrid, 100, cmap=plt.cm.jet)
-    # ax[1].set_xlabel(r"$\omega_\alpha$")
-    # ax[1].set_ylabel("$t$")
+    Xgrid, Ygrid = np.meshgrid(model1.Erad, times)
+    Zgrid = Prad[:,:,0] + Pdamp[:,:,0]
+    ax[1].contourf(Xgrid, Ygrid, Zgrid, 100, cmap=plt.cm.jet)
+    ax[1].set_xlabel(r"$\omega_\alpha$")
+    ax[1].set_ylabel("$t$")
 
-    # for it in range(int(Ntimes/Nskip)-1):
-    #     ax[2].plot(model2.Erad,Pdamp[it]+Prad[it],label=str((it+1)*Nskip*dt))
-    # # ax[2].plot(model.Erad,Pdamp[-1]+Prad[-1],label=str((it+1)*Nskip*dt))
-    # if hasattr(model2, 'Icav'):
-    #     ax[2].axvline(x=np.sqrt(Nmol)*Vcav)
-    #     ax[2].axvline(x=-np.sqrt(Nmol)*Vcav)
-    # ax[2].legend()
+    for it in range(int(Ntimes/Nskip)-1):
+        ax[2].plot(model1.Erad,Pdamp[it]+Prad[it],label=str((it+1)*Nskip*dt))
+    # ax[2].plot(model.Erad,Pdamp[-1]+Prad[-1],label=str((it+1)*Nskip*dt))
+    if hasattr(model1, 'Icav'):
+        ax[2].axvline(x=np.sqrt(Nmol)*Vcav)
+        ax[2].axvline(x=-np.sqrt(Nmol)*Vcav)
+    ax[2].legend()
 
     ax[3].plot(times,IPR1,lw=2, label='IPR1')
     # ax[3].plot(times,IPR2,lw=2, label='IPR2')
