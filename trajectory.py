@@ -129,7 +129,7 @@ class SingleExcitationWithCollectiveCoupling():
         self.Nrad = Nrad
         np.random.seed(seed)
 
-    def initialHamiltonian_Radiation(self,Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=False):
+    def initialHamiltonian_Radiation(self,Wgrd,Wmol,Vndd,Vrad,Wmax,damp,useQmatrix=False):
         """
         Construct the Hamiltonian in the form of 
         Ht0 = 
@@ -163,6 +163,13 @@ class SingleExcitationWithCollectiveCoupling():
         #Gamma = 1j*Gamma*(Vrad**2)
         self.Gamma = np.real(Gamma)
         # print(self.Gamma)
+
+        # Construct the nearest dipole-dipole coupling
+        for j in range(self.Nmol-1): 
+            Hmol[j,   j+1] = Vndd
+            Hmol[j+1, j  ] = Vndd
+        Hmol[0,-1] = Vndd
+        Hmol[-1,0] = Vndd
         
         drive = 0.0
         if useQmatrix:
@@ -178,7 +185,7 @@ class SingleExcitationWithCollectiveCoupling():
         self.Imol = 1
         self.Irad = self.Nmol+1
 
-    def initialHamiltonian_Cavity(self,Wgrd,Wcav,Wmol,Vcav,Vrad,Wmax,damp,useQmatrix=False):
+    def initialHamiltonian_Cavity(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Vrad,Wmax,damp,useQmatrix=False):
         """
         Construct the Hamiltonian in the form of 
         Ht0 = 
@@ -217,6 +224,13 @@ class SingleExcitationWithCollectiveCoupling():
         self.Gamma = np.real(Gamma)
         # print(self.Gamma)
         
+        # Construct the nearest dipole-dipole coupling
+        for j in range(self.Nmol-1): 
+            Hmol[j,   j+1] = Vndd
+            Hmol[j+1, j  ] = Vndd
+        Hmol[0,-1] = Vndd
+        Hmol[-1,0] = Vndd
+
         drive = 0.0
         if useQmatrix:
             Qmol = np.ones((self.Nmol,self.Nmol))

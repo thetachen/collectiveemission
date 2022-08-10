@@ -35,17 +35,17 @@ else:
     damp = 0.005
     Vrad = 0.001/5
 
-    useStaticDisorder = False 
+    useStaticDisorder = True
     useDynamicDisorder = False
-    Delta = 1.0
+    Delta = 0.0001
     TauC = 0.1
 
-    # hbar = 63.508
+    hbar = 63.508
     # mass = 10000.0  # Joul/mol(ps/A)^2
     # Kconst = 145000.0  # Joul/mol/A^2
     # staticCoup = 0.0 # 1/ps
     # dynamicCoup = 0.0 # 1/ps/A
-    # kBT = 1245.0 #Joul/mol
+    kBT = 1245.0 #Joul/mol
     
 model1 = SingleExcitationWithCollectiveCoupling(Nmol,Nrad)
 
@@ -61,8 +61,8 @@ if useDynamicDisorder:
 
 # model1.initialCj_Bright()
 # model1.initialCj_middle()
-model1.initialCj_Cavity()
-# model1.initialCj_Boltzman(hbar,kBT,most_prob=True)
+# model1.initialCj_Cavity()
+model1.initialCj_Boltzman(hbar,kBT,most_prob=True)
 
 times = []
 Pmol1, Pmol2 = [], []
