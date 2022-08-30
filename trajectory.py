@@ -1,3 +1,4 @@
+from math import gamma
 import numpy as np
 from copy import deepcopy
 class Trajectory_SSHmodel():
@@ -248,6 +249,48 @@ class SingleExcitationWithCollectiveCoupling():
         self.Imol = 2
         self.Irad = self.Nmol+2
 
+    def initialHamiltonian_BareCavity(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Gamma=0.0):
+        """
+        Construct the Hamiltonian in the form of 
+        Ht0 = 
+            | grd     | cav     | mol   
+        grd | Hgrd    |         |       
+        cav | Vcavgrd | Hcav    |         
+        mol | Vmolgrd | Vmolcav | Hmol  
+        """
+        self.useQmatrix = True #Just to eliminate the rad part 
+        self.Wmol = Wmol
+        self.Gamma = Gamma
+
+        Hgrd = np.eye(1) * Wgrd
+        Hcav = np.eye(1) * Wcav
+        Hmol = np.eye(self.Nmol) * Wmol
+
+        Vmolgrd = np.ones((self.Nmol,1),complex)
+        Vcavgrd = np.zeros((1,1),complex)
+        Vmolcav = np.ones((self.Nmol,1),complex) * Vcav
+        
+        # Construct the nearest dipole-dipole coupling
+        for j in range(self.Nmol-1): 
+            Hmol[j,   j+1] = Vndd
+            Hmol[j+1, j  ] = Vndd
+        Hmol[0,-1] = Vndd
+        Hmol[-1,0] = Vndd
+
+        drive = 0.0
+        Qmol = np.ones((self.Nmol,self.Nmol))
+        self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive   )),
+                                np.hstack(( Vcavgrd,       Hcav,          Vmolcav.T         )),
+                                np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol -1j*(self.Gamma/2)*Qmol   )) ))
+        
+        self.Qmat = np.vstack((  np.hstack(( Hgrd*0.0,      Vcavgrd.T*0.0,   Vmolgrd.T*0.0   )),
+                                np.hstack(( Vcavgrd*0.0,   Hcav*0.0,        Vmolcav.T*0.0   )),
+                                np.hstack(( Vmolgrd*0.0,   Vmolcav*0.0,     -1j*(self.Gamma/2)*Qmol )) ))
+
+        self.Ht = deepcopy(self.Ht0)        
+        self.Icav = 1
+        self.Imol = 2
+
     def updateDiagonalStaticDisorder(self,Delta):
         self.Ht = deepcopy(self.Ht0)
 
@@ -408,7 +451,7 @@ class SingleExcitationWithCollectiveCoupling():
         Choose the initial state from the set of eigenfunctions based on Boltzman distribution exp(-E_n/kBT)
         """
         # Use the updated Hamiltonian with this initial intermolecular coupling
-        Hmol = self.Ht[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol]
+        Hmol = self.Ht[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol] ###NOTE: INCORRECT! THIS INCLUCE Qmat!!! 
 
         W,U = np.linalg.eigh(Hmol)
         #idx = W.argsort()[::-1]   
@@ -443,6 +486,28 @@ class SingleExcitationWithCollectiveCoupling():
         else:
             self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
                                   self.Cj) )                #mol
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+
+    def initialCj_Polariton(self,initial_state):
+        """
+        Choose the initial state as the upper/lower polariton
+        """
+        # Use the updated Hamiltonian with this initial intermolecular coupling
+        Hmol = (self.Ht-self.Qmat)[self.Icav:self.Imol+self.Nmol,self.Icav:self.Imol+self.Nmol]
+
+        W,U = np.linalg.eigh(Hmol)
+        #idx = W.argsort()[::-1]   
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+        
+        # Initialize state vector
+        self.Cj = U.T[initial_state]
+        self.Cj = self.Cj[..., None] 
+
+        self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                              self.Cj) )                #mol
         if not self.useQmatrix:
             self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
 
