@@ -32,7 +32,7 @@ else:
     Vcav = 0.0
 
     useStaticDisorder = False
-    useDynamicDisorder = True
+    useDynamicDisorder = False
     Delta = 1.0
     TauC = 0.1
 
@@ -114,7 +114,7 @@ if not plotResult:
     for j in range(model1.Nmol):
         fwfn.write(str(j))
         for i in range(len(distr_list)):
-            fwfn.write('\t'+'{:2.10f}'.format(distr_list[i][j][0]))
+            fwfn.write('\t'+'{:2.10f}'.format(distr_list[i][j]))
         fwfn.write('\n')
 
 if plotResult:
