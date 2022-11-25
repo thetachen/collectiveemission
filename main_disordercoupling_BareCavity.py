@@ -119,7 +119,7 @@ if not plotResult:
 
     fcorr = open('Correlation.dat'+sys.argv[-1], 'w')
     for it in range(len(times)):
-        fdis.write("{t}\t{Corr_real}\t{Corr_imag}\n".format(t=times[it],Corr_real=np.real(Correlation_list[it]),Corr_imag=np.imag(Correlation_list[it])))
+        fcorr.write("{t}\t{Corr_real}\t{Corr_imag}\n".format(t=times[it],Corr_real=np.real(Correlation_list[it]),Corr_imag=np.imag(Correlation_list[it])))
 
     fwfn = open('wfn.dat'+sys.argv[-1], 'w')
     for j in range(model1.Nmol):
