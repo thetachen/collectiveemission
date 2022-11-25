@@ -117,6 +117,10 @@ if not plotResult:
     for it in range(len(times)):
         fdis.write("{t}\t{Displacement}\n".format(t=times[it],Displacement=Displacement_list[it]))
 
+    fdis = open('Correlation.dat'+sys.argv[-1], 'w')
+    for it in range(len(times)):
+        fdis.write("{t}\t{Correlation}\n".format(t=times[it],Correlation=Correlation_list[it]))
+
     fwfn = open('wfn.dat'+sys.argv[-1], 'w')
     for j in range(model1.Nmol):
         fwfn.write(str(j))
