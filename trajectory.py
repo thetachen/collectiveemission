@@ -119,8 +119,8 @@ class Trajectory_SSHmodel():
     def getDisplacement(self):
         # print(np.sum(np.abs(self.Cj.T)**2))
         # R2 = np.abs( np.sum(self.Rj**2 *np.abs(self.Cj.T)**2) ) 
-        R =  np.abs( np.sum(self.Rj    *np.abs(self.Cj.T)**2) ) 
-        R2 = np.abs( np.sum((self.Rj-R)**2 *np.abs(self.Cj.T)**2) ) 
+        R =  np.sum(self.Rj    *np.abs(self.Cj.T)**2)
+        R2 = np.sum((self.Rj-R)**2 *np.abs(self.Cj.T)**2)
         return R2
 
 class SingleExcitationWithCollectiveCoupling():
@@ -265,6 +265,7 @@ class SingleExcitationWithCollectiveCoupling():
         Hgrd = np.eye(1) * Wgrd
         Hcav = np.eye(1) * Wcav
         Hmol = np.eye(self.Nmol) * Wmol
+        Jmol = np.zeros((self.Nmol,self.Nmol),complex)
 
         Vmolgrd = np.ones((self.Nmol,1),complex)
         Vcavgrd = np.zeros((1,1),complex)
@@ -274,8 +275,12 @@ class SingleExcitationWithCollectiveCoupling():
         for j in range(self.Nmol-1): 
             Hmol[j,   j+1] = Vndd
             Hmol[j+1, j  ] = Vndd
+            Jmol[j,   j+1] = Vndd
+            Jmol[j+1, j  ] = Vndd
         Hmol[0,-1] = Vndd
         Hmol[-1,0] = Vndd
+        Jmol[0,-1] = Vndd
+        Jmol[-1,0] = Vndd
 
         drive = 0.0
         Qmol = np.ones((self.Nmol,self.Nmol))
@@ -286,6 +291,11 @@ class SingleExcitationWithCollectiveCoupling():
         self.Qmat = np.vstack((  np.hstack(( Hgrd*0.0,      Vcavgrd.T*0.0,   Vmolgrd.T*0.0   )),
                                 np.hstack(( Vcavgrd*0.0,   Hcav*0.0,        Vmolcav.T*0.0   )),
                                 np.hstack(( Vmolgrd*0.0,   Vmolcav*0.0,     -1j*(self.Gamma/2)*Qmol )) ))
+
+        self.Jt0 = np.vstack((  np.hstack(( Hgrd*0.0,      Vcavgrd.T*0.0,   Vmolgrd.T*0.0   )),
+                                np.hstack(( Vcavgrd*0.0,   Hcav*0.0,        Vmolcav.T*0.0   )),
+                                np.hstack(( Vmolgrd*0.0,   Vmolcav*0.0,     Jmol )) ))
+        self.Jt = deepcopy(self.Jt0)
 
         self.Ht = deepcopy(self.Ht0)        
         self.Icav = 1
@@ -433,8 +443,36 @@ class SingleExcitationWithCollectiveCoupling():
             self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
 
     def initialCj_middle(self):
+        """
+        choose the initial Cj as a single exictation at the middle of the chain
+        """
         self.Cj = np.zeros((self.Nmol,1),complex)
         self.Cj[int(self.Nmol/2)] = 1.0
+        # j0 = int(self.Nmol/2)
+        # width = 1
+        # for j in range(self.Nmol):
+        #     self.Cj[j,0] = np.exp(-(j-j0)**2/width**2/2)            
+        # self.Cj = self.Cj/np.sqrt(np.sum(np.abs(self.Cj)**2))
+        
+        if hasattr(self, 'Icav'):
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    np.zeros((1,1),complex),  #cav
+                                    self.Cj) )                #mol
+        else:
+            self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    self.Cj) )                #mol
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+
+    def initialCj_Gaussian(self,width):
+        """
+        Initialize Cj as a Gaussian distribution centered at the middle of the chain
+        """
+        self.Cj = np.zeros((self.Nmol,1),complex)
+        middle = int(self.Nmol/2)
+        for j in range(self.Nmol):
+            self.Cj[j] = np.exp(-(j-middle)**2/2/width**2)/np.sqrt(np.sqrt(np.pi)*width)
+        print(np.linalg.norm(self.Cj)**2)
 
         if hasattr(self, 'Icav'):
             self.Cj = np.vstack( (np.zeros((1,1),complex),    #grd
@@ -587,3 +625,31 @@ class SingleExcitationWithCollectiveCoupling():
         R =  np.abs( np.sum( Rj       *np.abs(self.Cj[self.Imol:self.Imol+self.Nmol].T)**2) ) 
         R2 = np.abs( np.sum((Rj-R)**2 *np.abs(self.Cj[self.Imol:self.Imol+self.Nmol].T)**2) ) 
         return R2
+
+    def getCurrentCorrelation(self):
+        if hasattr(self, 'J0Cj'):
+            # self.Jt = deepcopy(self.Ht)
+            self.Jt = np.zeros_like(self.Ht)
+            for j in range(self.Nmol-1): 
+                self.Jt[self.Imol+j,   self.Imol+j+1] = self.Ht[self.Imol+j,   self.Imol+j+1]
+                self.Jt[self.Imol+j+1, self.Imol+j]   = self.Ht[self.Imol+j+1, self.Imol+j]   
+            
+            self.Jt[self.Imol,self.Imol+self.Nmol-1] = self.Ht[self.Imol,self.Imol+self.Nmol-1] 
+            self.Jt[self.Imol+self.Nmol-1,self.Imol] = self.Ht[self.Imol+self.Nmol-1,self.Imol] 
+            
+            # Here Cj is at time t
+            # self.JtCj = np.dot(self.Jt,self.Cj)
+        else: #first step only 
+            self.J0Cj = np.dot(self.Jt0,self.Cj)
+            self.Jt = deepcopy(self.Jt0)
+
+        CJJ = np.dot(np.conj(self.Cj).T,np.dot(self.Jt,self.J0Cj))
+        return CJJ[0,0]
+
+    def propagateJ0Cj_RK4(self,dt):
+        ### RK4 propagation 
+        K1 = -1j*np.dot(self.Ht,self.J0Cj)
+        K2 = -1j*np.dot(self.Ht,self.J0Cj+dt*K1/2)
+        K3 = -1j*np.dot(self.Ht,self.J0Cj+dt*K2/2)
+        K4 = -1j*np.dot(self.Ht,self.J0Cj+dt*K3)
+        self.J0Cj += (K1+2*K2+2*K3+K4)*dt/6
