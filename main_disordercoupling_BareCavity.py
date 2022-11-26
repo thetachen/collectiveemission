@@ -31,11 +31,11 @@ else:
     Vndd = -0.3
 
     Wcav = 0.0 #+ 2.0*Vndd
-    Vcav = 0.3
+    Vcav = 0.0
 
-    useStaticDisorder = False
+    useStaticDisorder = True
     useDynamicDisorder = False
-    Delta = 0.0
+    Delta = 0.1
     TauC = 0.0
 
     # hbar = 63.508
@@ -121,12 +121,12 @@ if not plotResult:
     for it in range(len(times)):
         fcorr.write("{t}\t{Corr_real}\t{Corr_imag}\n".format(t=times[it],Corr_real=np.real(Correlation_list[it]),Corr_imag=np.imag(Correlation_list[it])))
 
-    fwfn = open('wfn.dat'+sys.argv[-1], 'w')
-    for j in range(model1.Nmol):
-        fwfn.write(str(j))
-        for i in range(len(distr_list)):
-            fwfn.write('\t'+'{:2.10f}'.format(distr_list[i][j]))
-        fwfn.write('\n')
+    # fwfn = open('wfn.dat'+sys.argv[-1], 'w')
+    # for j in range(model1.Nmol):
+    #     fwfn.write(str(j))
+    #     for i in range(len(distr_list)):
+    #         fwfn.write('\t'+'{:2.10f}'.format(distr_list[i][j]))
+    #     fwfn.write('\n')
 
 if plotResult:
     from scipy import stats, special
