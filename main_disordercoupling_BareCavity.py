@@ -28,15 +28,20 @@ else:
     Nmol = 101
     Wmol =  0.0
     Wgrd = -1.0
-    Vndd = -0.3
+    Vndd = -0.5
 
     Wcav = 0.0 #+ 2.0*Vndd
     Vcav = 0.0
 
-    useStaticDisorder = True
-    useDynamicDisorder = False
-    Delta = 0.1
-    TauC = 0.0
+    useStaticNeighborDisorder = False
+    useDynamicNeighborDisorder = False
+    DeltaNN = 0.0
+    TauNN = 0.0
+
+    useStaticDiagonalDisorder = False
+    useDynamicDiagonalDisorder = False
+    DeltaDD = 0.2
+    TauDD = 0.0
 
     # hbar = 63.508
     # mass = 10000.0  # Joul/mol(ps/A)^2
@@ -53,10 +58,14 @@ model1.initialHamiltonian_BareCavity(Wgrd,Wcav,Wmol,Vndd,Vcav,Gamma=0.00)
 
 # model1.initialXjVj_Gaussian(kBT,mass,Kconst)
 # model1.updateNeighborHarmonicOscillator(staticCoup,dynamicCoup)
-if useStaticDisorder:
-    model1.updateNeighborStaticDisorder(Delta)
-if useDynamicDisorder:
-    model1.updateNeighborDynamicDisorder(Delta,TauC,dt)
+if useStaticNeighborDisorder:
+    model1.updateNeighborStaticDisorder(DeltaNN)
+if useDynamicNeighborDisorder:
+    model1.updateNeighborDynamicDisorder(DeltaNN,TauNN,dt)
+if useStaticDiagonalDisorder:
+    model1.updateDiagonalStaticDisorder(DeltaDD)
+if useDynamicDiagonalDisorder:
+    model1.updateDiagonalDynamicDisorder(DeltaDD,TauDD,dt)
 
 # model1.initialCj_Bright()
 model1.initialCj_middle()
@@ -77,9 +86,10 @@ Correlation_list = []
 for it in range(Ntimes):
     # model1.propagateXjVj_velocityVerlet(dt)
     # model2.propagateXjVj_velocityVerlet(dt)
-    if useDynamicDisorder:
-        # model1.updateDiagonalDynamicDisorder(Delta,TauC,dt)
-        model1.updateNeighborDynamicDisorder(Delta,TauC,dt)
+    if useDynamicNeighborDisorder:
+        model1.updateNeighborDynamicDisorder(DeltaNN,TauNN,dt)
+    if useDynamicDiagonalDisorder:
+        model1.updateDiagonalDynamicDisorder(DeltaDD,TauDD,dt)
     # model1.updateNeighborHarmonicOscillator(staticCoup,dynamicCoup)
     CJJ = model1.getCurrentCorrelation()
 
@@ -258,7 +268,7 @@ if plotResult:
         ax[5].set_xlabel('time')
         ax[5].set_ylabel('current correlation')
     else:
-        ax[5].plot(times,np.real(Correlation_list))
+        ax[5].plot(times,-np.real(Correlation_list))
         ax[5].axhline(y=2.0*np.abs(Vndd)**2,ls='--')
         ax[5].set_xlabel('time')
         ax[5].set_ylabel('current correlation')

@@ -275,12 +275,12 @@ class SingleExcitationWithCollectiveCoupling():
         for j in range(self.Nmol-1): 
             Hmol[j,   j+1] = Vndd
             Hmol[j+1, j  ] = Vndd
-            Jmol[j,   j+1] = Vndd
-            Jmol[j+1, j  ] = -Vndd
+            Jmol[j,   j+1] =-Vndd
+            Jmol[j+1, j  ] = Vndd
         Hmol[0,-1] = Vndd
         Hmol[-1,0] = Vndd
-        Jmol[0,-1] = Vndd
-        Jmol[-1,0] = -Vndd
+        Jmol[0,-1] =-Vndd
+        Jmol[-1,0] = Vndd
 
         drive = 0.0
         Qmol = np.ones((self.Nmol,self.Nmol))
@@ -631,11 +631,11 @@ class SingleExcitationWithCollectiveCoupling():
             # self.Jt = deepcopy(self.Ht)
             self.Jt = np.zeros_like(self.Ht)
             for j in range(self.Nmol-1): 
-                self.Jt[self.Imol+j,   self.Imol+j+1] = self.Ht[self.Imol+j,   self.Imol+j+1]
-                self.Jt[self.Imol+j+1, self.Imol+j]   =-self.Ht[self.Imol+j+1, self.Imol+j]   
+                self.Jt[self.Imol+j,   self.Imol+j+1] =-self.Ht[self.Imol+j,   self.Imol+j+1]
+                self.Jt[self.Imol+j+1, self.Imol+j]   = self.Ht[self.Imol+j+1, self.Imol+j]   
             
-            self.Jt[self.Imol,self.Imol+self.Nmol-1] = self.Ht[self.Imol,self.Imol+self.Nmol-1] 
-            self.Jt[self.Imol+self.Nmol-1,self.Imol] =-self.Ht[self.Imol+self.Nmol-1,self.Imol] 
+            self.Jt[self.Imol,self.Imol+self.Nmol-1] =-self.Ht[self.Imol,self.Imol+self.Nmol-1] 
+            self.Jt[self.Imol+self.Nmol-1,self.Imol] = self.Ht[self.Imol+self.Nmol-1,self.Imol] 
             # Here Cj is at time t
             # self.JtCj = np.dot(self.Jt,self.Cj)
         else: #first step only 
