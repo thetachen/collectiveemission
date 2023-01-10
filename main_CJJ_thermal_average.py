@@ -42,7 +42,7 @@ else:
     DeltaDD = 0.0
     TauDD = 0.0
 
-    kBT = 20.0
+    kBT = 0.1
     # hbar = 63.508
     # mass = 10000.0  # Joul/mol(ps/A)^2
     # Kconst = 145000.0  # Joul/mol/A^2
@@ -58,6 +58,7 @@ model1.initialHamiltonian_nonHermitian(Wgrd,Wcav,Wmol,Vndd,Vcav,Kcav,Gamma=0.0)
 
 # model1.initialXjVj_Gaussian(kBT,mass,Kconst)
 # model1.updateNeighborHarmonicOscillator(staticCoup,dynamicCoup)
+useNodisorder=False
 if useStaticNeighborDisorder:
     model1.updateNeighborStaticDisorder(DeltaNN)
 elif useDynamicNeighborDisorder:
