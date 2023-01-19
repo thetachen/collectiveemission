@@ -186,7 +186,7 @@ class SingleExcitationWithCollectiveCoupling():
         self.Imol = 1
         self.Irad = self.Nmol+1
 
-    def initialHamiltonian_Cavity(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Vrad,Wmax,damp,useQmatrix=False):
+    def initialHamiltonian_Cavity_Radiation(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Vrad,Wmax,damp,useQmatrix=False):
         """
         Construct the Hamiltonian in the form of 
         Ht0 = 
@@ -249,7 +249,7 @@ class SingleExcitationWithCollectiveCoupling():
         self.Imol = 2
         self.Irad = self.Nmol+2
 
-    def initialHamiltonian_nonHermitian(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Kcav,Gamma=0.0):
+    def initialHamiltonian_Cavity_nonHermitian(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Kcav,Gamma=0.0):
         """
         Construct the Hamiltonian in the form of 
         Ht0 = 
