@@ -52,7 +52,7 @@ else:
     
 model1 = SingleExcitationWithCollectiveCoupling(Nmol,0)
 
-model1.initialHamiltonian_nonHermitian(Wgrd,Wcav,Wmol,Vndd,Vcav,Kcav,Gamma=0.0)
+model1.initialHamiltonian_Cavity_nonHermitian(Wgrd,Wcav,Wmol,Vndd,Vcav,Kcav,Gamma=0.0)
 
 # model1.initialCj_Polariton(-1) # initialize before disorder
 
@@ -118,7 +118,8 @@ else:
     if not plotResult:
         fcorr = open('CJJ_therm.dat'+sys.argv[-1], 'w')
         for it in range(len(times)):
-            fcorr.write("{t}\t{Corr_real}\t{Corr_imag}\n".format(t=times[it],Corr_real=np.real(CJJ_avg)[it],Corr_imag=np.imag(CJJ_avg)[it]))
+            if it%Nskip==0:
+                fcorr.write("{t}\t{Corr_real}\t{Corr_imag}\n".format(t=times[it],Corr_real=np.real(CJJ_avg)[it],Corr_imag=np.imag(CJJ_avg)[it]))
 
         feigen = open('Eigen.dat'+sys.argv[-1], 'w')
         for i in range(len(EigEng)):
