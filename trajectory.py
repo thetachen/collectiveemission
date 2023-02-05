@@ -186,6 +186,80 @@ class SingleExcitationWithCollectiveCoupling():
         self.Imol = 1
         self.Irad = self.Nmol+1
 
+    def initialHamiltonian_nonHermitian(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Kcav,Gamma=0.0):
+        """
+        This is a combination of initialHamiltonian_Cavity_nonHermitian
+        Construct the Hamiltonian in the form of 
+        if Vcav ==0:
+            Ht0 = 
+                | grd     | mol   
+            grd | Hgrd    | 
+            mol | Vmolgrd | Hmol  
+        else: 
+            Ht0 = 
+                | grd     | cav     | mol   
+            grd | Hgrd    |         |       
+            cav | Vcavgrd | Hcav    |         
+            mol | Vmolgrd | Vmolcav | Hmol              
+        """
+        self.useQmatrix = True #Just to eliminate the rad part 
+        self.Wmol = Wmol
+        self.Gamma = Gamma
+
+        Hgrd = np.eye(1) * Wgrd
+        Hcav = np.eye(1) * Wcav
+        Hmol = np.eye(self.Nmol) * Wmol
+        Jmol = np.zeros((self.Nmol,self.Nmol),complex)
+
+        Vmolgrd = np.ones((self.Nmol,1),complex)
+        Vcavgrd = np.zeros((1,1),complex)
+        Vmolcav = np.ones((self.Nmol,1),complex) * Vcav
+        if not Kcav==0:
+            for j in range(self.Nmol):
+                # Vmolcav[j,0] = Vcav*np.sin(Kcav*np.pi*j/self.Nmol)
+                Vmolcav[j,0] = Vcav*np.exp(-1j*(Kcav*np.pi*j/self.Nmol))
+            
+        # Construct the nearest dipole-dipole coupling
+        for j in range(self.Nmol-1): 
+            Hmol[j,   j+1] = Vndd
+            Hmol[j+1, j  ] = Vndd
+            Jmol[j,   j+1] = Vndd*1j
+            Jmol[j+1, j  ] =-Vndd*1j
+        Hmol[0,-1] = Vndd
+        Hmol[-1,0] = Vndd
+        Jmol[0,-1] =-Vndd*1j
+        Jmol[-1,0] = Vndd*1j
+
+        drive = 0.0
+        Qmol = np.ones((self.Nmol,self.Nmol))
+        if Vcav==0.0:
+            self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vmolgrd.T*drive   )),
+                                    np.hstack(( Vmolgrd*drive, Hmol -1j*(self.Gamma/2)*Qmol   )) ))
+            
+            self.Qmat = np.vstack(( np.hstack(( Hgrd*0.0,     Vmolgrd.T*0.0   )),
+                                    np.hstack(( Vmolgrd*0.0,  -1j*(self.Gamma/2)*Qmol )) ))
+
+            self.Jt0 = np.vstack((  np.hstack(( Hgrd*0.0,      Vmolgrd.T*0.0   )),
+                                    np.hstack(( Vmolgrd*0.0,   Jmol )) ))
+            self.Imol = 1
+        else:
+            self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vcavgrd.T,     Vmolgrd.T*drive   )),
+                                    np.hstack(( Vcavgrd,       Hcav,          np.conj(Vmolcav).T)),
+                                    np.hstack(( Vmolgrd*drive, Vmolcav,       Hmol -1j*(self.Gamma/2)*Qmol   )) ))
+            
+            self.Qmat = np.vstack((  np.hstack(( Hgrd*0.0,      Vcavgrd.T*0.0,   Vmolgrd.T*0.0   )),
+                                    np.hstack(( Vcavgrd*0.0,   Hcav*0.0,        Vmolcav.T*0.0   )),
+                                    np.hstack(( Vmolgrd*0.0,   Vmolcav*0.0,     -1j*(self.Gamma/2)*Qmol )) ))
+
+            self.Jt0 = np.vstack((  np.hstack(( Hgrd*0.0,      Vcavgrd.T*0.0,   Vmolgrd.T*0.0   )),
+                                    np.hstack(( Vcavgrd*0.0,   Hcav*0.0,        Vmolcav.T*0.0   )),
+                                    np.hstack(( Vmolgrd*0.0,   Vmolcav*0.0,     Jmol )) ))
+            self.Icav = 1
+            self.Imol = 2
+
+        self.Jt = deepcopy(self.Jt0)
+        self.Ht = deepcopy(self.Ht0)    
+
     def initialHamiltonian_Cavity_Radiation(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Vrad,Wmax,damp,useQmatrix=False):
         """
         Construct the Hamiltonian in the form of 
@@ -520,6 +594,40 @@ class SingleExcitationWithCollectiveCoupling():
 
         return W
 
+    def initialCj_Eigenstate(self,Vcav,initial_state=0):
+        """
+        Choose the initial state to be one of the eigenstate of Hmol 
+        This function unifies initialCj_Eigenstate_Hmol and initialCj_Eigenstate_Hcavmol
+        if Vcav==0: 
+            Hmol
+        else:
+            Hcavmol
+        """
+        # Use the updated Hamiltonian with this initial intermolecular coupling
+        if Vcav==0.0:
+            Hmol = self.Ht[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol] ###NOTE: INCORRECT! THIS INCLUCE Qmat!!! 
+            W,U = np.linalg.eigh(Hmol)
+        else:
+            Hcavmol = self.Ht[self.Icav:self.Imol+self.Nmol,self.Icav:self.Imol+self.Nmol]
+            W,U = np.linalg.eigh(Hcavmol)
+        
+        #idx = W.argsort()[::-1]   
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+
+        # Initialize state vector
+        self.Cj = U.T[initial_state]
+        self.Cj = self.Cj[..., None] 
+
+        self.Cj = np.vstack( (np.zeros((1,1),complex),  #grd
+                              self.Cj) )                #mol
+                              
+        if not self.useQmatrix:
+            self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+        self.Eall = W
+        self.Evec = U
+
     def initialCj_Eigenstate_Hmol(self,initial_state=0):
         """
         Choose the initial state to be one of the eigenstate of Hmol
@@ -545,8 +653,8 @@ class SingleExcitationWithCollectiveCoupling():
                                   self.Cj) )                #mol
         if not self.useQmatrix:
             self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
-
-        return W, U
+        self.Eall = W
+        self.Evec = U
 
     def initialCj_Eigenstate_Hcavmol(self,initial_state):
         """
@@ -570,8 +678,85 @@ class SingleExcitationWithCollectiveCoupling():
                               self.Cj) )                #mol
         if not self.useQmatrix:
             self.Cj = np.vstack( (self.Cj,np.zeros((self.Nrad,1),complex)) )
+        self.Eall = W
+        self.Evec = U
 
-        return W, U
+    def initialCall_Eigenstate(self,Vcav):
+        """
+        Set the initial state to be all the eigenstates 
+        This function unifies initialCall_Eigenstate_Hmol and initialCall_Eigenstate_Hcavmol
+        if Vcav==0: 
+            Hmol
+        else:
+            Hcavmol
+        """
+        # Use the updated Hamiltonian with this initial intermolecular coupling
+        if Vcav==0: 
+            Hmol = self.Ht[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol] ###NOTE: INCORRECT! THIS INCLUCE Qmat!!! 
+            W,U = np.linalg.eigh(Hmol)
+        else:
+            Hcavmol = self.Ht[self.Icav:self.Imol+self.Nmol,self.Icav:self.Imol+self.Nmol]
+            W,U = np.linalg.eigh(Hcavmol)
+
+        #idx = W.argsort()[::-1]   
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+
+        # Initialize the state matrix
+        self.Eall = W
+        self.Call = U
+        self.Call = np.vstack( (np.zeros((1,len(U)),complex),  #grd
+                                self.Call) )                #mol
+        if not self.useQmatrix:
+            self.Call = np.vstack( (self.Call,np.zeros((self.Nrad,len(U)),complex)) )
+
+    def initialCall_Eigenstate_Hmol(self):
+        """
+        Choose the initial state to be one of the eigenstate of Hmol
+        """
+        # Use the updated Hamiltonian with this initial intermolecular coupling
+        Hmol = self.Ht[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol] ###NOTE: INCORRECT! THIS INCLUCE Qmat!!! 
+
+        W,U = np.linalg.eigh(Hmol)
+        #idx = W.argsort()[::-1]   
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+
+        # Initialize state matrix
+        self.Call = U
+        self.Call = np.vstack( (np.zeros((1,len(U)),complex),  #grd
+                                self.Call) )                #mol
+        if not self.useQmatrix:
+            self.Call = np.vstack( (self.Call,np.zeros((self.Nrad,len(U)),complex)) )
+        self.Eall = W
+
+    def initialCall_Eigenstate_Hcavmol(self):
+        """
+        Choose the initial state to be one of the eigenstate of Hmol+Hcav
+        """
+        # Use the updated Hamiltonian with this initial intermolecular coupling
+        Hcavmol = self.Ht[self.Icav:self.Imol+self.Nmol,self.Icav:self.Imol+self.Nmol]
+        # Hcavmol = self.Ht0[self.Icav:self.Imol+self.Nmol,self.Icav:self.Imol+self.Nmol]
+
+        W,U = np.linalg.eigh(Hcavmol)
+        #idx = W.argsort()[::-1]   
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+        
+        self.Call = U
+        self.Call = np.vstack( (np.zeros((1,len(U)),complex),  #grd
+                                self.Call) )                   #mol
+        if not self.useQmatrix:
+            self.Call = np.vstack( (self.Cj,np.zeros((self.Nrad,len(U)),complex)) )
+        self.Eall = W
+
+    def initialParition_Boltzmann(self,kBT):
+        parition = np.sum(np.exp(-self.Eall/kBT))
+        # append the ground state 
+        self.Boltzmann = np.diag(np.exp(-self.Eall/kBT)/parition)
 
     def initialCj_Boltzman(self,hbar,kBT,most_prob=False):
         """
@@ -646,6 +831,14 @@ class SingleExcitationWithCollectiveCoupling():
         K4 = -1j*np.dot(self.Ht,self.Cj+dt*K3)
         self.Cj += (K1+2*K2+2*K3+K4)*dt/6
 
+    def propagateCall_RK4(self,dt):
+        ### RK4 propagation 
+        K1 = -1j*np.dot(self.Ht,self.Call)
+        K2 = -1j*np.dot(self.Ht,self.Call+dt*K1/2)
+        K3 = -1j*np.dot(self.Ht,self.Call+dt*K2/2)
+        K4 = -1j*np.dot(self.Ht,self.Call+dt*K3)
+        self.Call += (K1+2*K2+2*K3+K4)*dt/6
+        
     def propagateCj_dHdt(self,dt):
         if not hasattr(self, 'dHdt'):
             self.dHdt = np.zeros_like(self.Ht0)
@@ -735,6 +928,55 @@ class SingleExcitationWithCollectiveCoupling():
         Javg = np.dot(np.conj(self.Cj).T,np.dot(self.Jt,self.Cj))
         return Javg[0,0], CJJ[0,0]
 
+    def getCurrentCorrelation_all(self):
+        if hasattr(self, 'J0Call'):
+            # self.Jt = deepcopy(self.Ht)
+            self.Jt = np.zeros_like(self.Ht)
+            for j in range(self.Nmol-1): 
+                self.Jt[self.Imol+j,   self.Imol+j+1] = self.Ht[self.Imol+j,   self.Imol+j+1]*1j
+                self.Jt[self.Imol+j+1, self.Imol+j]   =-self.Ht[self.Imol+j+1, self.Imol+j]*1j   
+            
+            self.Jt[self.Imol,self.Imol+self.Nmol-1] =-self.Ht[self.Imol,self.Imol+self.Nmol-1]*1j
+            self.Jt[self.Imol+self.Nmol-1,self.Imol] = self.Ht[self.Imol+self.Nmol-1,self.Imol]*1j 
+            # Here Cj is at time t
+            # self.JtCj = np.dot(self.Jt,self.Cj)
+        else: #first step only 
+            self.J0Call = np.dot(self.Jt0,self.Call)
+            self.Jt = deepcopy(self.Jt0)
+
+        CJJ = np.dot(np.conj(self.Call).T,np.dot(self.Jt,self.J0Call))
+        J = np.dot(np.conj(self.Call).T,np.dot(self.Jt,self.Call))
+
+        CJJall = np.dot(np.dot(np.conj(self.Call).T,np.dot(self.Jt,self.J0Call)),self.Boltzmann)
+        Jall = np.dot(np.dot(np.conj(self.Call).T,np.dot(self.Jt,self.Call)),self.Boltzmann)
+        
+        CJJavg = np.trace(CJJall)
+        Javg = np.trace(Jall)
+        return Javg, CJJavg
+
+    def getCurrentCorrelation_stationary(self,dt,Ntimes,kBT,Vcav):
+        times = np.arange(Ntimes)*dt
+        if Vcav==0.0:
+            Nsize = self.Nmol
+            Jmol = self.Jt0[self.Imol:self.Imol+self.Nmol,self.Imol:self.Imol+self.Nmol]
+        else:
+            Nsize = self.Nmol +1 
+            Jmol = self.Jt0[self.Icav:self.Imol+self.Nmol,self.Icav:self.Imol+self.Nmol]
+        J0mn = np.dot(np.conj(self.Evec).T,np.dot(Jmol,self.Evec))
+    
+        CJJ_avg = np.zeros(Ntimes,complex)
+        Partition = 0.0
+        for m in range(Nsize):
+            CJJ_ana = np.zeros(Ntimes,complex)
+            for n in range(Nsize):
+                CJJ_ana = CJJ_ana + np.exp(1j*(self.Eall[m]-self.Eall[n])*times)*np.abs(J0mn[m,n])**2
+            # print(CJJ_ana[-1])
+            CJJ_avg = CJJ_avg + CJJ_ana * np.exp(-self.Eall[m]/kBT)
+            Partition = Partition + np.exp(-self.Eall[m]/kBT)
+        CJJ_avg = CJJ_avg/Partition
+
+        return CJJ_avg
+
     def propagateJ0Cj_RK4(self,dt):
         ### RK4 propagation 
         K1 = -1j*np.dot(self.Ht,self.J0Cj)
@@ -742,3 +984,11 @@ class SingleExcitationWithCollectiveCoupling():
         K3 = -1j*np.dot(self.Ht,self.J0Cj+dt*K2/2)
         K4 = -1j*np.dot(self.Ht,self.J0Cj+dt*K3)
         self.J0Cj += (K1+2*K2+2*K3+K4)*dt/6
+
+    def propagateJ0Call_RK4(self,dt):
+        ### RK4 propagation 
+        K1 = -1j*np.dot(self.Ht,self.J0Call)
+        K2 = -1j*np.dot(self.Ht,self.J0Call+dt*K1/2)
+        K3 = -1j*np.dot(self.Ht,self.J0Call+dt*K2/2)
+        K4 = -1j*np.dot(self.Ht,self.J0Call+dt*K3)
+        self.J0Call += (K1+2*K2+2*K3+K4)*dt/6
