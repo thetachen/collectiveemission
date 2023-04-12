@@ -32,8 +32,8 @@ class Trajectory_SSHmodel():
         self.mass = mass
         self.Kconst = Kconst
 
-        self.Xj = np.random.normal(0.0, kBT/self.Kconst, self.Nmol)
-        self.Vj = np.random.normal(0.0, kBT/self.mass,   self.Nmol)
+        self.Xj = np.random.normal(0.0, np.sqrt(kBT/self.Kconst), self.Nmol)
+        self.Vj = np.random.normal(0.0, np.sqrt(kBT/self.mass),   self.Nmol)
 
     def initialState(self,hbar,kBT,most_prob=False):
         """
@@ -851,8 +851,8 @@ class SingleExcitationWithCollectiveCoupling():
         self.mass = mass
         self.Kconst = Kconst
 
-        self.Xj = np.random.normal(0.0, self.kBT/self.Kconst, self.Nmol)
-        self.Vj = np.random.normal(0.0, self.kBT/self.mass,   self.Nmol)
+        self.Xj = np.random.normal(0.0, np.sqrt(self.kBT/self.Kconst), self.Nmol)
+        self.Vj = np.random.normal(0.0, np.sqrt(self.kBT/self.mass),   self.Nmol)
         
     def propagateXjVj_velocityVerlet(self,dt):
         """

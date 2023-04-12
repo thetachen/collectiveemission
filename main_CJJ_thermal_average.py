@@ -12,6 +12,7 @@ if '--print' in sys.argv:
     printOutput = True
 if '--test' in sys.argv:
     SanityCheck = True
+    from matplotlib import pyplot as plt
 if '--plot' in sys.argv: 
     plotResult=True
     from matplotlib import pyplot as plt
@@ -47,6 +48,9 @@ else:
     TauDD = 0.0
 
     kBT = 0.1
+    useThermalStaticNeighborDisorder = False
+    Kconst = 100.0
+    DeltaNN = kBT/Kconst
     # hbar = 63.508
     # mass = 10000.0  # Joul/mol(ps/A)^2
     # Kconst = 145000.0  # Joul/mol/A^2
@@ -66,6 +70,8 @@ elif useStaticDiagonalDisorder:
     model1.updateDiagonalStaticDisorder(DeltaDD)
 elif useDynamicDiagonalDisorder:
     model1.updateDiagonalDynamicDisorder(DeltaDD,TauDD,dt)
+elif useThermalStaticNeighborDisorder:
+    model1.updateNeighborStaticDisorder(DeltaNN)
 else:
     useNodisorder=True
 
@@ -113,6 +119,19 @@ if useStaticNeighborDisorder or useStaticDiagonalDisorder or useNodisorder or Sa
 
     CJJavg_list = np.array(CJJavg1_list)
     EigEng_list = model1.Eall
+
+    if SanityCheck:
+        theta_n = 2*np.pi*np.arange(Nmol)/Nmol
+        eigen_list = -2*Vndd*np.cos(theta_n)
+        CJJ_ana_list = 4*Vndd**2*( np.sin(theta_n)**2 * np.exp(-2*Vndd/kBT*np.cos(theta_n))) / np.sum( np.exp(-2*Vndd/kBT*np.cos(theta_n)))
+        print(CJJavg_list)
+        print(np.sum(CJJ_ana_list)) 
+
+        fig, ax= plt.subplots()
+        ax.plot(eigen_list,CJJ_ana_list,'-x')
+        ax.set_xlabel("eigen energy")
+        ax.set_ylabel("CJJ contribution")
+        plt.show()
 
 if SanityCheck:
     for it in range(len(times)):
