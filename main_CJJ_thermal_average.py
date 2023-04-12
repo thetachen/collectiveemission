@@ -104,7 +104,7 @@ if useDynamicNeighborDisorder or useDynamicDiagonalDisorder or SanityCheck:
     CJJavg_list = np.array(CJJavg2_list)
     EigEng_list = model2.Eall
 
-if useStaticNeighborDisorder or useStaticDiagonalDisorder or useNodisorder or SanityCheck:
+if useStaticNeighborDisorder or useStaticDiagonalDisorder or useNodisorder or useThermalStaticNeighborDisorder or SanityCheck:
     print("Use the stationary evaluation of CJJ")
     model1.initialCj_Eigenstate(Vcav,initial_state=0)
     CJJavg1 = model1.getCurrentCorrelation_stationary(dt,Ntimes,kBT,Vcav)
