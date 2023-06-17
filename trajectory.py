@@ -177,10 +177,15 @@ class SingleExcitationWithCollectiveCoupling():
             Qmol = np.ones((self.Nmol,self.Nmol))
             self.Ht0 = np.vstack(( np.hstack(( Hgrd,          Vmolgrd.T*drive               )),
                                    np.hstack(( Vmolgrd*drive, Hmol - 1j*(self.Gamma/2)*Qmol )) ))        
+            self.Hext =np.vstack(( np.hstack(( Hgrd*0.0,    Vmolgrd.T   )),
+                                   np.hstack(( Vmolgrd*0.0, Hmol*0.0    )) ))        
         else:
             self.Ht0 = np.vstack((  np.hstack(( Hgrd,          Vmolgrd.T*drive,    Vradgrd.T    )),
                                     np.hstack(( Vmolgrd*drive, Hmol,               Vradmol.T    )),
                                     np.hstack(( Vradgrd,       Vradmol,            Hrad         )) ))
+            self.Hext =np.vstack((  np.hstack(( Hgrd*0.0,       Vmolgrd.T,      Vradgrd.T*0.0   )),
+                                    np.hstack(( Vmolgrd*0.0,    Hmol*0.0,       Vradmol.T*0.0   )),
+                                    np.hstack(( Vradgrd*0.0,    Vradmol*0.0,    Hrad*0.0        )) ))
         self.Ht = deepcopy(self.Ht0)
 
         self.Imol = 1
@@ -378,6 +383,60 @@ class SingleExcitationWithCollectiveCoupling():
         self.Ht = deepcopy(self.Ht0)        
         self.Icav = 1
         self.Imol = 2
+ 
+    def initialHamiltonian_LossyCavity(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Gamma_cav,Gamma_loc):
+        """
+        Construct the Hamiltonian in the form of 
+        Ht0 = 
+            | grd     | cav     | mol   
+        grd | Hgrd    |         |       
+        cav | Vcavgrd | Hcav    |         
+        mol | Vmolgrd | Vmolcav | Hmol  
+        """
+        self.useQmatrix = True #Just to eliminate the rad part 
+        self.Wmol = Wmol
+        self.Gamma_cav = Gamma_cav
+        self.Gamma_loc = Gamma_loc
+
+        Hgrd = np.eye(1) * Wgrd
+        Hcav = np.eye(1) * Wcav
+        Hmol = np.eye(self.Nmol) * Wmol
+        Cmol = np.eye(self.Nmol)
+        Jmol = np.zeros((self.Nmol,self.Nmol),complex)
+
+        Vmolgrd = np.ones((self.Nmol,1),complex)
+        Vcavgrd = np.ones((1,1),complex)
+        Vmolcav = np.ones((self.Nmol,1),complex) * Vcav
+        
+        # Construct the nearest dipole-dipole coupling
+        for j in range(self.Nmol-1): 
+            Hmol[j,   j+1] = Vndd
+            Hmol[j+1, j  ] = Vndd
+            Jmol[j,   j+1] = Vndd*1j
+            Jmol[j+1, j  ] =-Vndd*1j
+        Hmol[0,-1] = Vndd
+        Hmol[-1,0] = Vndd
+        Jmol[0,-1] =-Vndd*1j
+        Jmol[-1,0] = Vndd*1j
+
+        drive = 0.0
+
+        self.Ht0 = np.vstack((  np.hstack(( Hgrd,           Vcavgrd.T*0.0,              Vmolgrd.T*0.0       )),
+                                np.hstack(( Vcavgrd*0.0,    Hcav-1j*self.Gamma_cav,     np.conj(Vmolcav).T  )),
+                                np.hstack(( Vmolgrd*0.0,    Vmolcav,                    Hmol-1j*self.Gamma_loc*Cmol   )) ))
+        self.Hext= np.vstack((  np.hstack(( Hgrd*0.0,       Vcavgrd.T,               Vmolgrd.T*0.0           )),
+                                np.hstack(( Vcavgrd*0.0,    Hcav*0.0,                np.conj(Vmolcav).T*0.0  )),
+                                np.hstack(( Vmolgrd*0.0,    Vmolcav*0.0,             Hmol*0.0                )) ))
+        self.Jt0 = np.vstack((  np.hstack(( Hgrd*0.0,      Vcavgrd.T*0.0,   Vmolgrd.T*0.0   )),
+                                np.hstack(( Vcavgrd*0.0,   Hcav*0.0,        Vmolcav.T*0.0   )),
+                                np.hstack(( Vmolgrd*0.0,   Vmolcav*0.0,     Jmol )) ))
+        self.Jt = deepcopy(self.Jt0)
+
+        self.Ht = deepcopy(self.Ht0)        
+        self.Icav = 1
+        self.Imol = 2
+    def reset_Cgrd(self):
+        self.Cj[0]=self.Cj[0]/np.abs(self.Cj[0])
 
     def updateDiagonalStaticDisorder(self,Delta):
         self.Ht = deepcopy(self.Ht0)
@@ -472,6 +531,36 @@ class SingleExcitationWithCollectiveCoupling():
         self.dHdt[self.Imol,self.Imol+self.Nmol-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
         self.dHdt[self.Imol+self.Nmol-1,self.Imol] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
 
+    def updateExternalDriving(self,DriveParam,time):
+
+        if DriveParam['DriveType'] == 'None':
+            drive = 0.0
+        if DriveParam['DriveType'] == 'Constant':
+            drive = DriveParam['DriveAmplitude']
+        if DriveParam['DriveType'] == 'ContinuousSin':
+            drive = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time)
+            if time-DriveParam['DrivePulseCenter']<0:
+                drive = drive*np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'ContinuousCos':
+            drive = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time)
+            if time-DriveParam['DrivePulseCenter']<0:
+                drive = drive*np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'ContinuousExp':
+            drive = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time)
+            if time-DriveParam['DrivePulseCenter']<0:
+                drive = drive*np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'Pulse':
+            drive = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time) * \
+                    np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'PulseCut':
+            drive = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time) * \
+                    np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            if time-DriveParam['DrivePulseCenter'] >0:
+                drive = 0.0
+        self.Ht = self.Ht + self.Hext * drive + self.Hext.T * np.conj(drive)
+
+        return drive
+        
     def initialCj_Cavity(self):
         self.Cj = np.zeros((self.Nmol,1),complex)
         if hasattr(self, 'Icav'):
@@ -878,6 +967,9 @@ class SingleExcitationWithCollectiveCoupling():
         # 4: calculate Vj(t+dt)
         self.Vj = self.Vj + 0.5*dt*Aj
 
+    def getPopulation_ground(self):
+        return np.linalg.norm(self.Cj[0])**2
+    
     def getPopulation_system(self):
         return np.linalg.norm(self.Cj[self.Imol:self.Imol+self.Nmol])**2
 

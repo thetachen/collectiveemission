@@ -4,12 +4,13 @@ from matplotlib import pyplot as plt
 from trajectory import SingleExcitationWithCollectiveCoupling
 
 dt = 0.05
-Ntimes = 2000
+Ntimes = 4000
 Nskip = 20
 
 Nmol = 10
 Wmol =  0.0
 Wgrd = -1.0
+Vndd = 0.0
 
 Nrad = 1001
 Wmax = 1.0
@@ -18,18 +19,27 @@ Vrad = 0.001
 
 Delta = 0.1
 TauC = 0.1
+DriveParam={
+    'DriveType':    'Pulse',
+    'DriveAmplitude':   0.005,   
+    'DriveFrequency':   1.3,
+    'DrivePulseCenter': 100.0,
+    'DrivePulseWidth':  25.0,
+}
 
 model1 = SingleExcitationWithCollectiveCoupling(Nmol,Nrad)
 model2 = SingleExcitationWithCollectiveCoupling(Nmol,Nrad)
 
-model1.initialHamiltonian_Radiation(Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=True)
-model2.initialHamiltonian_Radiation(Wgrd,Wmol,Vrad,Wmax,damp,useQmatrix=False)
+model1.initialHamiltonian_Radiation(Wgrd,Wmol,Vndd,Vrad,Wmax,damp,useQmatrix=True)
+model2.initialHamiltonian_Radiation(Wgrd,Wmol,Vndd,Vrad,Wmax,damp,useQmatrix=False)
 # model1.updateDiagonalStaticDisorder(Delta)
 # model2.updateDiagonalStaticDisorder(Delta)
 
-model1.initialCj_Bright()
-model2.initialCj_Bright()
+# model1.initialCj_Bright()
+# model2.initialCj_Bright()
 
+model1.initialCj_Ground()
+model2.initialCj_Ground()
 
 
 times = []
@@ -38,10 +48,13 @@ IPR1, IPR2 = [], []
 Prad, Pdamp = [], []
 Prad_tot, Pdamp_tot = [], []
 Pdamp_int = np.zeros((Nrad,1))
+ExternalDrive = []
 for it in range(Ntimes):
     # model1.updateDiagonalDynamicDisorder(Delta,TauC,dt)
     # model2.updateDiagonalDynamicDisorder(Delta,TauC,dt)
-
+    drive = model1.updateExternalDriving(DriveParam,it*dt)
+    drive = model2.updateExternalDriving(DriveParam,it*dt)
+    
     # model1.propagateCj_RK4(dt)
     # model2.propagateCj_RK4(dt)
     model1.propagateCj_dHdt(dt)
@@ -62,6 +75,7 @@ for it in range(Ntimes):
 
         Prad_tot.append( model2.getPopulation_radiation() )
         Pdamp_tot.append( np.sum(Pdamp_int) )
+        ExternalDrive.append(drive)
 
         print("{t}\t{dP}".format(t=it*dt,dP=Pmol2[-1]+Prad_tot[-1]+Pdamp_tot[-1]) )
 
@@ -74,12 +88,13 @@ ax[0].plot(times,Pmol2, '-k', lw=2, label='Explicit', alpha=0.7)
 ax[0].plot(times,Prad_tot, '-', lw=2, label='radition', alpha=0.7)
 ax[0].plot(times,Pdamp_tot, '-', lw=2, label='damped', alpha=0.7)
 ax[0].plot(times,np.exp(-Nmol*np.real(model2.Gamma)*np.array(times)), '--k', lw=2, alpha=0.7)
+ax[0].plot(times,np.array(ExternalDrive)/DriveParam['DriveAmplitude'],'-')
 ax[0].set_xlabel("$t$")
 ax[0].set_ylabel("$P_{mol}$")
 ax[0].legend()
 
 Xgrid, Ygrid = np.meshgrid(model2.Erad, times)
-Zgrid = Prad[:,:,0] + Pdamp[:,:,0]
+Zgrid = Prad[:,:,0] #+ Pdamp[:,:,0]
 ax[1].contourf(Xgrid, Ygrid, Zgrid, 100, cmap=plt.cm.jet)
 ax[1].set_xlabel(r"$\omega_\alpha$")
 ax[1].set_ylabel("$t$")
@@ -92,8 +107,7 @@ if hasattr(model2, 'Icav'):
     ax[2].axvline(x=-np.sqrt(Nmol)*Vcav)
 ax[2].legend()
 
-ax[3].plot(times,IPR1,lw=2, label='IPR1')
-ax[3].plot(times,IPR2,lw=2, label='IPR2')
+ax[3].plot(model2.Erad,Pdamp[-1]+Prad[-1])
 ax[3].legend()
 
 
