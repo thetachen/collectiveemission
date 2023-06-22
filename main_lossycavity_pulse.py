@@ -9,6 +9,10 @@ if '--plot' in sys.argv:
     from matplotlib import pyplot as plt
 else: 
     plotResult=False
+if '--print' in sys.argv:
+    printOutput = True
+else: 
+    printOutput=False
 
 if 'param.in' in sys.argv:
     exec(open('param.in').read())
@@ -111,8 +115,9 @@ if True:
             P_lp1.append(P_lp)
             IPR1.append( model1.getIPR() )
             IPR2.append( model2.getIPR() )
-            print(it,Pmol1[-1],Pmol2[-1],Pmol1[-1]-Pmol2[-1])
-            # print("{t}\t{Pcav}".format(t=it*dt,Pcav=Pcav1[-1]) )
+            if printOutput:
+                print(it,Pmol1[-1],Pmol2[-1],Pmol1[-1]-Pmol2[-1])
+                # print("{t}\t{Pcav}".format(t=it*dt,Pcav=Pcav1[-1]) )
 
     fpop = open('pop.dat'+sys.argv[-1], 'w')
     for it in range(len(times)):
