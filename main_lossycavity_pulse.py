@@ -7,6 +7,8 @@ from trajectory import SingleExcitationWithCollectiveCoupling
 if '--plot' in sys.argv: 
     plotResult=True
     from matplotlib import pyplot as plt
+else: 
+    plotResult=False
 
 if 'param.in' in sys.argv:
     exec(open('param.in').read())
