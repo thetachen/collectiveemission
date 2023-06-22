@@ -435,6 +435,70 @@ class SingleExcitationWithCollectiveCoupling():
         self.Ht = deepcopy(self.Ht0)        
         self.Icav = 1
         self.Imol = 2
+
+    def initialHamiltonian_LossyCavity_Radiation(self,Wgrd,Wcav,Wmol,Vndd,Vcav,Vrad,Wmax,damp,Gamma_loc,useQmatrix=False):
+        """
+        Construct the Hamiltonian in the form of 
+        Ht0 = 
+            | grd     | cav     | mol     | rad 
+        grd | Hgrd    |         |         |
+        cav | Vcavgrd | Hcav    |         |  
+        mol | Vmolgrd | Vmolcav | Hmol    |
+        rad | Vradgrd | Vradcav | Vradmol | Hrad
+        """
+        self.Wmol = Wmol
+        self.useQmatrix = useQmatrix
+        self.damp = damp
+        self.Gamma_loc = Gamma_loc
+        self.Erad = np.zeros(self.Nrad)
+
+        Hgrd = np.eye(1) * Wgrd
+        Hcav = np.eye(1) * Wcav
+        Hmol = np.eye(self.Nmol) * Wmol
+        Cmol = np.eye(self.Nmol)
+        Hrad = np.zeros((self.Nrad,self.Nrad),complex)
+
+        Vradmol = np.zeros((self.Nrad,self.Nmol),complex)
+        Vmolgrd = np.ones((self.Nmol,1),complex)
+        Vradgrd = np.zeros((self.Nrad,1),complex)
+        Vcavgrd = np.ones((1,1),complex)
+        Vmolcav = np.ones((self.Nmol,1),complex) * Vcav
+        Vradcav = np.ones((self.Nrad,1),complex) * Vrad
+
+        # Construct the molecule-radiation coupling
+        Gamma_cav = 0.0
+        for j in range(self.Nrad):
+            self.Erad[j] = ( j - (self.Nrad-1)/2 ) * Wmax *2.0/(self.Nrad-1)
+            Hrad[j,j] = self.Erad[j] - 1j*self.damp
+            for i in range(self.Nmol):
+                Vradmol[j,i] = Vrad # * (Wrad_width**2) / ( Erad[j]**2 + Wrad_width**2 )
+            Gamma_cav += -2.0*1j*(Vradmol[j,0]**2)/Hrad[j,j] # set to be the same: 0
+        #Gamma = 1j*Gamma*(Vrad**2)
+        self.Gamma_cav = np.real(Gamma_cav)
+        # print(self.Gamma_cav)
+
+        # Construct the nearest dipole-dipole coupling
+        for j in range(self.Nmol-1): 
+            Hmol[j,   j+1] = Vndd
+            Hmol[j+1, j  ] = Vndd
+        Hmol[0,-1] = Vndd
+        Hmol[-1,0] = Vndd
+
+        self.Ht0 = np.vstack((  np.hstack(( Hgrd,           Vcavgrd.T*0.0,  Vmolgrd.T*0.0,                  Vradgrd.T*0.0   )),
+                                np.hstack(( Vcavgrd*0.0,    Hcav,           Vmolcav.T,                      Vradcav.T       )),
+                                np.hstack(( Vmolgrd*0.0,    Vmolcav,        Hmol-1j*self.Gamma_loc*Cmol,    Vradmol.T*0.0   )),
+                                np.hstack(( Vradgrd*0.0,    Vradcav,        Vradmol*0.0,                    Hrad            )) ))
+        self.Hext= np.vstack((  np.hstack(( Hgrd*0.0,       Vcavgrd.T,      Vmolgrd.T*0.0,   Vradgrd.T*0.0   )),
+                                np.hstack(( Vcavgrd*0.0,    Hcav*0.0,       Vmolcav.T*0.0,  Vradcav.T*0.0   )),
+                                np.hstack(( Vmolgrd*0.0,    Vmolcav*0.0,    Hmol*0.0,       Vradmol.T*0.0   )),
+                                np.hstack(( Vradgrd*0.0,    Vradcav*0.0,    Vradmol*0.0,    Hrad*0.0        )) ))
+        
+        self.Ht = deepcopy(self.Ht0)
+        
+        self.Icav = 1
+        self.Imol = 2
+        self.Irad = self.Nmol+2
+
     def reset_Cgrd(self):
         self.Cj[0]=self.Cj[0]/np.abs(self.Cj[0])
 
@@ -985,6 +1049,36 @@ class SingleExcitationWithCollectiveCoupling():
         else:
             return 0.0
 
+    def getPopulation_polariton(self):
+        ### note: these UP and LP states are only for the on-resonance case. 
+        bright = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)/np.sqrt(2.0)
+        if hasattr(self, 'Icav'):
+            upper = np.vstack( (np.zeros((1,1),complex),    #grd
+                                np.ones((1,1),complex)/np.sqrt(2.0),  #cav
+                                bright) )                #mol
+            lower = np.vstack( (np.zeros((1,1),complex),    #grd
+                                -np.ones((1,1),complex)/np.sqrt(2.0),  #cav
+                                bright) )                #mol
+        P_upper = np.abs(np.dot(upper.T,self.Cj))**2
+        P_lower = np.abs(np.dot(lower.T,self.Cj))**2
+
+
+        return P_upper[0,0],P_lower[0,0]
+    
+    def getPopulation_bright(self):
+        bright = np.ones((self.Nmol,1),complex)/np.sqrt(self.Nmol)
+        if hasattr(self, 'Icav'):
+            bright = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    np.zeros((1,1),complex),  #cav
+                                    bright) )                #mol
+        else:
+            bright = np.vstack( (np.zeros((1,1),complex),    #grd
+                                    bright) )                #mol
+        P_bright = np.abs(np.dot(bright.T,self.Cj))**2
+        P_dark = np.linalg.norm(self.Cj[self.Imol:self.Imol+self.Nmol])**2 - P_bright
+
+        return P_bright[0,0],P_dark[0,0]
+    
     def getIPR(self):
         return np.linalg.norm(self.Cj[self.Imol:self.Imol+self.Nmol])**4 \
                 / np.sum(np.abs(self.Cj[self.Imol:self.Imol+self.Nmol])**4)
