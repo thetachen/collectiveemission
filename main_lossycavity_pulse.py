@@ -62,8 +62,7 @@ if True:
     model1.initialHamiltonian_LossyCavity(Wgrd,Wcav,Wmol,Vndd,Vcav,Gamma_cav,Gamma_loc)
     if useStaticDiagonalDisorder:
         model2.updateDiagonalStaticDisorder(DeltaDD)
-        model1.Ht = model2.Ht[:model2.Irad,:model2.Irad]
-        # model1.updateDiagonalStaticDisorder(DeltaDD)
+        model1.updateDiagonalStaticDisorder(DeltaDD)
     
     model1.initialCj_Ground()
     model2.initialCj_Ground()
