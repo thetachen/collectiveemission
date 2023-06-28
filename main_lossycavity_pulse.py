@@ -17,8 +17,8 @@ else:
 if 'param.in' in sys.argv:
     exec(open('param.in').read())
 else:
-    dt = 0.001
-    Ntimes = 30000
+    dt = 0.01
+    Ntimes = 10000
     Nskip = 100
     
     Nmol = 40
@@ -32,9 +32,6 @@ else:
     damp = 0.005
     Vrad = 0.001
 
-    Delta = 0.1
-    TauC = 0.1
-
     Wcav = 0.0
     Vcav = 0.5/np.sqrt(Nmol)
 
@@ -42,8 +39,8 @@ else:
         'DriveType':    'Pulse',
         'DriveAmplitude':   0.0005,   
         'DriveFrequency':   -Wgrd - Vcav*np.sqrt(Nmol), #+/-: upper and lower polariton
-        'DrivePulseCenter': 100.0,
-        'DrivePulseWidth':  25.0,
+        'DrivePulseCenter': 20.0,
+        'DrivePulseWidth':  10.0,
     }
 
     useStaticDiagonalDisorder = False
@@ -80,13 +77,13 @@ if True:
     Pdamp_int = np.zeros((Nrad,1))
     IPR1, IPR2 = [], []
     Pcav1,Pcav2 = [], []
-    ExternalDrive = []
+    Drive = []
     for it in range(Ntimes):
         if useDynamicDiagonalDisorder:
             model1.updateDiagonalDynamicDisorder(DeltaDD,TauDD,dt)
             model2.updateDiagonalDynamicDisorder(DeltaDD,TauDD,dt)
-        drive = model1.updateExternalDriving(DriveParam,it*dt)
-        drive = model2.updateExternalDriving(DriveParam,it*dt)
+        drive = model1.updateExternalDriving(DriveParam,it*dt,dt)
+        drive = model2.updateExternalDriving(DriveParam,it*dt,dt)
 
         model1.propagateCj_RK4(dt)
         model2.propagateCj_RK4(dt)
@@ -114,8 +111,9 @@ if True:
             P_lp1.append(P_lp)
             IPR1.append( model1.getIPR() )
             IPR2.append( model2.getIPR() )
+            Drive.append(drive)
             if printOutput:
-                print(it,Pmol1[-1],Pmol2[-1],Pmol1[-1]-Pmol2[-1])
+                print(it*dt,drive,Pmol1[-1],Pmol2[-1],Pmol1[-1]-Pmol2[-1])
                 # print("{t}\t{Pcav}".format(t=it*dt,Pcav=Pcav1[-1]) )
 
     fpop = open('pop.dat'+sys.argv[-1], 'w')
@@ -150,9 +148,11 @@ if True:
         ax[3].semilogy(times,P_lp1,'--', lw=2, label='P_lp, Wd='+str(round(Wdrv+Wgrd,2)))
         ax[4].semilogy(times,Pbrt1,'-', lw=2, label='Pbrt, Wd='+str(round(Wdrv+Wgrd,2)))
         ax[4].semilogy(times,Pdrk1,'-', lw=2, label='Pdrk, Wd='+str(round(Wdrv+Wgrd,2)))
+        # ax[4].plot(times,Drive,'-', lw=2, label='drive')
         # ax[2].plot(times,Pgrd1,'-', lw=2, label='Pgrd', alpha=0.7)
         ax[0].set_xlabel("$t$")
         ax[0].set_ylabel("$P$")
+        ax[0].set_ylim([1E-8,1E-1])
         ax[0].legend()
         ax[2].legend()
         ax[3].legend()

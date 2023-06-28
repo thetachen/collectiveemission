@@ -595,35 +595,70 @@ class SingleExcitationWithCollectiveCoupling():
         self.dHdt[self.Imol,self.Imol+self.Nmol-1] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
         self.dHdt[self.Imol+self.Nmol-1,self.Imol] = self.dynamicCoup * (self.Vj[0]-self.Vj[-1])
 
-    def updateExternalDriving(self,DriveParam,time):
-
+    def updateExternalDriving(self,DriveParam,time,dt):
+        time0 = time
+        time1 = time + dt/2
+        time2 = time + dt
         if DriveParam['DriveType'] == 'None':
-            drive = 0.0
+            drive0 = 0.0
         if DriveParam['DriveType'] == 'Constant':
-            drive = DriveParam['DriveAmplitude']
+            drive0 = DriveParam['DriveAmplitude']
         if DriveParam['DriveType'] == 'ContinuousSin':
-            drive = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time)
-            if time-DriveParam['DrivePulseCenter']<0:
-                drive = drive*np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive0 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time0)
+            drive1 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time1)
+            drive2 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time2)
+            if time0-DriveParam['DrivePulseCenter']<0:
+                drive0 = drive0*np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time1-DriveParam['DrivePulseCenter']<0:
+                drive1 = drive1*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time2-DriveParam['DrivePulseCenter']<0:
+                drive2 = drive2*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
         if DriveParam['DriveType'] == 'ContinuousCos':
-            drive = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time)
-            if time-DriveParam['DrivePulseCenter']<0:
-                drive = drive*np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive0 = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time0)
+            drive1 = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time1)
+            drive2 = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time2)
+            if time0-DriveParam['DrivePulseCenter']<0:
+                drive0 = drive0*np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time1-DriveParam['DrivePulseCenter']<0:
+                drive1 = drive1*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time2-DriveParam['DrivePulseCenter']<0:
+                drive2 = drive2*np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
         if DriveParam['DriveType'] == 'ContinuousExp':
-            drive = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time)
-            if time-DriveParam['DrivePulseCenter']<0:
-                drive = drive*np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive0 = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time0)
+            drive1 = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time1)
+            drive2 = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time2)
+            if time0-DriveParam['DrivePulseCenter']<0:
+                drive0 = drive0*np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time1-DriveParam['DrivePulseCenter']<0:
+                drive1 = drive1*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time2-DriveParam['DrivePulseCenter']<0:
+                drive2 = drive2*np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
         if DriveParam['DriveType'] == 'Pulse':
-            drive = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time) * \
-                    np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive0 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time0) * \
+                    np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive1 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time1) * \
+                    np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive2 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time2) * \
+                    np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
         if DriveParam['DriveType'] == 'PulseCut':
-            drive = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time) * \
-                    np.exp(-(time-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
-            if time-DriveParam['DrivePulseCenter'] >0:
-                drive = 0.0
-        self.Ht = self.Ht + self.Hext * drive + self.Hext.T * np.conj(drive)
-
-        return drive
+            drive0 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time0) * \
+                    np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            drive1 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time1) * \
+                    np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            drive2 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time2) * \
+                    np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            if time0-DriveParam['DrivePulseCenter'] >0:
+                drive0 = 0.0
+            if time1-DriveParam['DrivePulseCenter'] >0:
+                drive1 = 0.0
+            if time2-DriveParam['DrivePulseCenter'] >0:
+                drive2 = 0.0
+        
+        self.Hext0 = self.Hext * drive0 + self.Hext.T * np.conj(drive0)
+        self.Hext1 = self.Hext * drive1 + self.Hext.T * np.conj(drive1)
+        self.Hext2 = self.Hext * drive2 + self.Hext.T * np.conj(drive2)
+        
+        return drive0
         
     def initialCj_Cavity(self):
         self.Cj = np.zeros((self.Nmol,1),complex)
@@ -978,10 +1013,16 @@ class SingleExcitationWithCollectiveCoupling():
 
     def propagateCj_RK4(self,dt):
         ### RK4 propagation 
-        K1 = -1j*np.dot(self.Ht,self.Cj)
-        K2 = -1j*np.dot(self.Ht,self.Cj+dt*K1/2)
-        K3 = -1j*np.dot(self.Ht,self.Cj+dt*K2/2)
-        K4 = -1j*np.dot(self.Ht,self.Cj+dt*K3)
+        if hasattr(self, 'Hext0'):
+            K1 = -1j*np.dot(self.Ht+self.Hext0,self.Cj)
+            K2 = -1j*np.dot(self.Ht+self.Hext1,self.Cj+dt*K1/2)
+            K3 = -1j*np.dot(self.Ht+self.Hext1,self.Cj+dt*K2/2)
+            K4 = -1j*np.dot(self.Ht+self.Hext2,self.Cj+dt*K3)
+        else:
+            K1 = -1j*np.dot(self.Ht,self.Cj)
+            K2 = -1j*np.dot(self.Ht,self.Cj+dt*K1/2)
+            K3 = -1j*np.dot(self.Ht,self.Cj+dt*K2/2)
+            K4 = -1j*np.dot(self.Ht,self.Cj+dt*K3)
         self.Cj += (K1+2*K2+2*K3+K4)*dt/6
 
     def propagateCall_RK4(self,dt):
