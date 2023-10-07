@@ -7,6 +7,7 @@ from models import SingleExcitationWithCollectiveCoupling
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p","--plot",action="store_true")
+parser.add_argument("-i","--input",type=str)
 parser.add_argument("-v","--verbosity",action="store_true")
 parser.add_argument("-s", "--save",type=int)
 args = parser.parse_args()
@@ -15,8 +16,10 @@ args = parser.parse_args()
 if args.plot:
     from matplotlib import pyplot as plt
 
-if 'param.in' in sys.argv:
-    exec(open('param.in').read())
+# if 'param.in' in sys.argv:
+#     exec(open('param.in').read())
+if  hasattr(args, 'input'):
+    exec(open(args.input).read())
 else:
     dt = 0.001*5
     Ntimes = int(400000/5)
@@ -50,8 +53,6 @@ else:
         'DriveType':        'ContinuousCos',
         'DriveAmplitude':   0.0005,   
         'DriveFrequency':   -Wgrd + 0.0,
-        'DrivePulseCenter': 0.0,
-        'DrivePulseWidth':  0.0,
     }
 
 
