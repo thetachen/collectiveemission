@@ -1072,6 +1072,13 @@ class SingleExcitationWithCollectiveCoupling():
         # 4: calculate Vj(t+dt)
         self.Vj = self.Vj + 0.5*dt*Aj
 
+    def getOrderParameter(self):
+        order = 0.0*1j
+        for i in range(self.Imol,self.Imol+self.Nmol):
+            order += self.Cj[i]/np.abs(self.Cj[i])/self.Nmol
+        # return np.abs(order), np.angle(order)
+        return np.abs(order), np.imag(np.log(order/np.abs(order)))
+
     def getPopulation_ground(self):
         return np.linalg.norm(self.Cj[0])**2
     
@@ -1219,3 +1226,144 @@ class SingleExcitationWithCollectiveCoupling():
         K3 = -1j*np.dot(self.Ht,self.J0Call+dt*K2/2)
         K4 = -1j*np.dot(self.Ht,self.J0Call+dt*K3)
         self.J0Call += (K1+2*K2+2*K3+K4)*dt/6
+
+class SingleExcitationWithThreeStates():
+
+    def __init__(self,seed=None):
+        np.random.seed(seed)
+
+    def initialHamiltonian_FourStates(self,Wmol,Wcav,Vgrdchs,Vchsloc,Vchscav,Vloccav,Gchs,Gloc,Gcav):
+        """
+        Construct the Hamiltonian in the form of 
+        Ht0 = 
+                | grd       | chs       | loc       | grd+cav
+        grd     | Hgrd      | Vgrdchs   |           | Vgrdcav
+        chs     |           | Hchs      | Vchsloc   | Vchscav
+        loc     |           |           | Hloc      | Vloccav
+        grd+cav |           |           |           | Hcav
+        """
+        self.useQmatrix = True #Just to eliminate the rad part 
+
+        self.Ht0 = np.zeros((4,4),complex)
+        self.Ht0[0,0] = Wmol[0]
+        self.Ht0[1,1] = Wmol[1] - 1j*Gchs
+        self.Ht0[2,2] = Wmol[2] - 1j*Gloc
+        self.Ht0[3,3] = Wmol[0]+Wcav - 1j*Gcav
+
+        self.Ht0[0,1] = Vgrdchs; self.Ht0[1,0] = Vgrdchs
+        self.Ht0[1,2] = Vchsloc; self.Ht0[2,1] = Vchsloc
+        self.Ht0[1,3] = Vchscav; self.Ht0[3,1] = Vchscav
+        self.Ht0[2,3] = Vloccav; self.Ht0[3,2] = Vloccav
+        
+        drive = 0.0
+
+        self.Hext= np.zeros((4,4),complex)
+        self.Hext[0,3] = 1.0; self.Hext[3,0] = 1.0
+
+        self.Ht = deepcopy(self.Ht0)
+
+        self.Icav = 3
+        self.Imol = 0
+
+    def reset_Cgrd(self):
+        self.Cj[0]=self.Cj[0]/np.abs(self.Cj[0])
+
+    def updateExternalDriving(self,DriveParam,time,dt):
+        time0 = time
+        time1 = time + dt/2
+        time2 = time + dt
+        if DriveParam['DriveType'] == 'None':
+            drive0 = 0.0
+        if DriveParam['DriveType'] == 'Constant':
+            drive0 = DriveParam['DriveAmplitude']
+        if DriveParam['DriveType'] == 'ContinuousSin':
+            drive0 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time0)
+            drive1 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time1)
+            drive2 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time2)
+            if time0-DriveParam['DrivePulseCenter']<0:
+                drive0 = drive0*np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time1-DriveParam['DrivePulseCenter']<0:
+                drive1 = drive1*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time2-DriveParam['DrivePulseCenter']<0:
+                drive2 = drive2*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'ContinuousCos':
+            drive0 = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time0)
+            drive1 = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time1)
+            drive2 = DriveParam['DriveAmplitude']*np.cos(DriveParam['DriveFrequency']*time2)
+            if time0-DriveParam['DrivePulseCenter']<0:
+                drive0 = drive0*np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time1-DriveParam['DrivePulseCenter']<0:
+                drive1 = drive1*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time2-DriveParam['DrivePulseCenter']<0:
+                drive2 = drive2*np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'ContinuousExp':
+            drive0 = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time0)
+            drive1 = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time1)
+            drive2 = DriveParam['DriveAmplitude']*np.exp(1j*DriveParam['DriveFrequency']*time2)
+            if time0-DriveParam['DrivePulseCenter']<0:
+                drive0 = drive0*np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time1-DriveParam['DrivePulseCenter']<0:
+                drive1 = drive1*np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            if time2-DriveParam['DrivePulseCenter']<0:
+                drive2 = drive2*np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'Pulse':
+            drive0 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time0) * \
+                    np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive1 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time1) * \
+                    np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+            drive2 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time2) * \
+                    np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2)
+        if DriveParam['DriveType'] == 'PulseCut':
+            drive0 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time0) * \
+                    np.exp(-(time0-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            drive1 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time1) * \
+                    np.exp(-(time1-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            drive2 = DriveParam['DriveAmplitude']*np.sin(DriveParam['DriveFrequency']*time2) * \
+                    np.exp(-(time2-DriveParam['DrivePulseCenter'])**2/DriveParam['DrivePulseWidth']**2) 
+            if time0-DriveParam['DrivePulseCenter'] >0:
+                drive0 = 0.0
+            if time1-DriveParam['DrivePulseCenter'] >0:
+                drive1 = 0.0
+            if time2-DriveParam['DrivePulseCenter'] >0:
+                drive2 = 0.0
+        
+        self.Hext0 = self.Hext * drive0 + self.Hext.T * np.conj(drive0)
+        self.Hext1 = self.Hext * drive1 + self.Hext.T * np.conj(drive1)
+        self.Hext2 = self.Hext * drive2 + self.Hext.T * np.conj(drive2)
+        
+        return drive0
+
+    def initialCj_Ground(self):
+        self.Cj = np.zeros((4,1),complex)
+        self.Cj[0,0] = 1.0
+
+    def propagateCj_RK4(self,dt):
+        ### RK4 propagation 
+        if hasattr(self, 'Hext0'):
+            K1 = -1j*np.dot(self.Ht+self.Hext0,self.Cj)
+            K2 = -1j*np.dot(self.Ht+self.Hext1,self.Cj+dt*K1/2)
+            K3 = -1j*np.dot(self.Ht+self.Hext1,self.Cj+dt*K2/2)
+            K4 = -1j*np.dot(self.Ht+self.Hext2,self.Cj+dt*K3)
+        else:
+            K1 = -1j*np.dot(self.Ht,self.Cj)
+            K2 = -1j*np.dot(self.Ht,self.Cj+dt*K1/2)
+            K3 = -1j*np.dot(self.Ht,self.Cj+dt*K2/2)
+            K4 = -1j*np.dot(self.Ht,self.Cj+dt*K3)
+        self.Cj += (K1+2*K2+2*K3+K4)*dt/6
+
+    def propagateCj_dHdt(self,dt):
+        if not hasattr(self, 'dHdt'):
+            self.dHdt = np.zeros_like(self.Ht0)
+        self.Cj = self.Cj - 1j*dt*np.dot(self.Ht,self.Cj) \
+                   -0.5*dt**2*np.dot(self.Ht,np.dot(self.Ht,self.Cj)) \
+                   -0.5*1j*dt**2*np.dot(self.dHdt,self.Cj)
+
+    def getPopulation_ground(self):
+        return np.linalg.norm(self.Cj[0])**2
+
+    def getPopulation_cavity(self):
+        if hasattr(self, 'Icav'):
+            return np.abs(self.Cj[self.Icav])**2
+        else:
+            return 0.0
+
