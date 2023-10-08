@@ -1093,7 +1093,7 @@ class SingleExcitationWithCollectiveCoupling():
             
     def getPopulation_cavity(self):
         if hasattr(self, 'Icav'):
-            return np.abs(self.Cj[self.Icav])**2
+            return np.linalg.norm(self.Cj[self.Icav])**2
         else:
             return 0.0
 

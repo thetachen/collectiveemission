@@ -18,7 +18,7 @@ if args.plot:
 
 # if 'param.in' in sys.argv:
 #     exec(open('param.in').read())
-if  hasattr(args, 'input'):
+if  not args.input==None:
     exec(open(args.input).read())
 else:
     dt = 0.001*5
@@ -53,6 +53,8 @@ else:
         'DriveType':        'ContinuousCos',
         'DriveAmplitude':   0.0005,   
         'DriveFrequency':   -Wgrd + 0.0,
+        'DrivePulseCenter': 0.0,
+        'DrivePulseWidth':  0.0,
     }
 
 
