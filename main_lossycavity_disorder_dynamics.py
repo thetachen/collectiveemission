@@ -43,10 +43,11 @@ else:
     Vcav = 0.5/np.sqrt(Nmol)
     Gamma_cav = 0.05
     DisorderParam={
-        'Type':     'None',
+        # 'Type':     'None',
         # 'Type':     'Static_Diagonal',
-        # 'Delta':            0.3,
-        # 'Tau':              0.0,
+        'Type':     'Dynamical_Coupling',
+        'Delta':            0.4*np.pi,
+        'Tau':              0.1,
     }
 
     DriveParam={
@@ -67,8 +68,12 @@ if True:
     model1.initialHamiltonian_LossyCavity(Wgrd,Wcav,Wmol,Vndd,Vcav,Gamma_cav,Gamma_loc)
     if DisorderParam['Type'] == 'Static_Diagonal':
         model1.updateDiagonalStaticDisorder(DisorderParam['Delta'])
+    elif DisorderParam['Type'] == 'Static_Coupling':
+        model1.updateCouplingStaticDisorder(DisorderParam['Delta'],Vcav)
     elif DisorderParam['Type'] == 'Dyanmic_Diagonal':
         model1.updateDiagonalDynamicDisorder(DisorderParam['Delta'],DisorderParam['Tau'],dt)
+    elif DisorderParam['Type'] == 'Dynamical_Coupling':
+        model1.updateCouplingDynamicDisorder(DisorderParam['Delta'],DisorderParam['Tau'],Vcav,dt)
 
     # model1.initialCj_Ground()
     model1.initialCj_Random()
@@ -84,6 +89,8 @@ if True:
     for it in range(Ntimes):
         if DisorderParam['Type'] == 'Dyanmic_Diagonal':
             model1.updateDiagonalDynamicDisorder(DisorderParam['Delta'],DisorderParam['Tau'],dt)
+        elif DisorderParam['Type'] == 'Dynamical_Coupling':
+            model1.updateCouplingDynamicDisorder(DisorderParam['Delta'],DisorderParam['Tau'],Vcav,dt)
         drive = model1.updateExternalDriving(DriveParam,it*dt,dt)
         
         model1.propagateCj_RK4(dt)
