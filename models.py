@@ -509,22 +509,32 @@ class SingleExcitationWithCollectiveCoupling():
         for j in range(self.Nmol): 
             self.Ht[self.Imol+j,self.Imol+j] += self.Wstc[j]
 
-    def updateCouplingStaticDisorder(self,Delta,Vcav):
+    def updateCouplingStaticDisorder(self,Delta,Vcav,uniform_dist=False):
         self.Ht = deepcopy(self.Ht0)
 
-        self.Theta_stc = np.random.normal(0.0,Delta,self.Nmol)
+        if uniform_dist:
+            self.Theta_stc = np.random.uniform(0.0,Delta,self.Nmol)
+            # self.Theta_stc = np.random.uniform(-Delta/2,Delta/2,self.Nmol)
+            # print(np.average(np.cos(self.Theta_stc)))
+            # print(np.var(np.cos(self.Theta_stc)))
+        else:
+            self.Theta_stc = np.random.normal(0.0,Delta,self.Nmol)
         for j in range(self.Nmol): 
             self.Ht[self.Icav,self.Imol+j] = Vcav*np.cos(self.Theta_stc[j])
             self.Ht[self.Imol+j,self.Icav] = Vcav*np.cos(self.Theta_stc[j])
 
-    def updateCouplingDynamicDisorder(self,Delta,TauC,Vcav,dt):
+    def updateCouplingDynamicDisorder(self,Delta,TauC,Vcav,dt,uniform_dist=False):
         # simulate Gaussian process
         # cf. George B. Rybicki's note
         # https://www.lanl.gov/DLDSTP/fast/OU_process.pdf
         self.Ht = deepcopy(self.Ht0)
 
         if not hasattr(self, 'Theta_dyn'):
-            self.Theta_dyn = np.random.normal(0.0,Delta,self.Nmol)
+            if uniform_dist:
+                self.Theta_dyn = np.random.uniform(0.0,Delta,self.Nmol)
+                # self.Theta_dyn = np.random.uniform(-Delta/2,Delta/2,self.Nmol)
+            else:
+                self.Theta_dyn = np.random.normal(0.0,Delta,self.Nmol)
         else:
             ri = np.exp(-dt/TauC) * (TauC>0.0)
             mean_it = ri*self.Theta_dyn
